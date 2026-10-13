@@ -60,6 +60,10 @@ class RoleController extends Controller
         $user->role = $validated['role'];
         $user->save();
 
+        // Une modification de privileges invalide toutes les sessions
+        // existantes afin qu'aucun appareil ne conserve un contexte ancien.
+        $user->tokens()->delete();
+
         // 2. Toute elevation ou reduction de privileges est tracee.
         //
         // Si un compte se met a consulter des dossiers qu'il ne devrait pas,
