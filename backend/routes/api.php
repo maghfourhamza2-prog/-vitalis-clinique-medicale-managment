@@ -33,6 +33,8 @@ use App\Http\Controllers\ResultatController;
 // 'login' et 'auth-public' sont definis dans AppServiceProvider.
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:login');
+Route::post('/login/mfa', [AuthController::class, 'verifyMfa'])
+    ->middleware('throttle:auth-public');
 
 Route::middleware('throttle:auth-public')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
