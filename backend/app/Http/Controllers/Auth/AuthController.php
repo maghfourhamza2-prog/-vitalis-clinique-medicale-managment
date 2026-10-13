@@ -131,7 +131,9 @@ class AuthController extends Controller
         // Un compte desactive ne doit pas pouvoir continuer a obtenir de
         // nouveaux jetons. La comparaison est insensible a la casse car les
         // anciennes donnees utilisent a la fois "actif" et "Actif".
-        if (strtolower((string) $user->statut) === 'inactif') {
+        $statut = strtolower(trim((string) $user->statut));
+
+        if ($statut !== '' && $statut !== 'actif') {
             Auth::guard('web')->logout();
 
             Log::warning('Connexion refusee pour un compte inactif', [
@@ -169,6 +171,11 @@ class AuthController extends Controller
             return response()->json(['message' => 'Code invalide ou expiré'], 401);
         }
 
+        if ((int) ($challenge['expires_at'] ?? 0) < now()->timestamp) {
+            Cache::forget($cacheKey);
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
         $maxAttempts = max(1, (int) config('security.mfa.max_attempts', 5));
         $attempts = (int) ($challenge['attempts'] ?? 0) + 1;
 
@@ -178,17 +185,16 @@ class AuthController extends Controller
         }
 
         $challenge['attempts'] = $attempts;
-        Cache::put(
-            $cacheKey,
-            $challenge,
-            now()->addSeconds(max(60, (int) config('security.mfa.ttl_seconds', 300)))
-        );
+        $remaining = max(1, (int) $challenge['expires_at'] - now()->timestamp);
+        Cache::put($cacheKey, $challenge, now()->addSeconds($remaining));
 
         $ipHash = hash('sha256', (string) $request->ip());
+        $userAgentHash = hash('sha256', (string) $request->userAgent());
         $codeHash = hash_hmac('sha256', $validated['code'], (string) config('app.key'));
 
         if (
             ! hash_equals((string) ($challenge['ip_hash'] ?? ''), $ipHash)
+            || ! hash_equals((string) ($challenge['user_agent_hash'] ?? ''), $userAgentHash)
             || ! hash_equals((string) ($challenge['code_hash'] ?? ''), $codeHash)
         ) {
             return response()->json(['message' => 'Code invalide ou expiré'], 401);
@@ -196,7 +202,9 @@ class AuthController extends Controller
 
         $user = User::find($challenge['user_id'] ?? null);
 
-        if ($user === null || strtolower((string) $user->statut) === 'inactif') {
+        $statut = $user === null ? '' : strtolower(trim((string) $user->statut));
+
+        if ($user === null || ($statut !== '' && $statut !== 'actif')) {
             Cache::forget($cacheKey);
             return response()->json(['message' => 'Code invalide ou expiré'], 401);
         }
@@ -214,15 +222,29 @@ class AuthController extends Controller
 
     private function demarrerMfa(Request $request, User $user)
     {
+        if (
+            app()->environment('production')
+            && in_array((string) config('mail.default'), ['log', 'array'], true)
+        ) {
+            Log::critical('MFA obligatoire mais aucun transport email de production n\'est configure');
+
+            return response()->json([
+                'message' => 'Le second facteur est temporairement indisponible.',
+            ], 503);
+        }
+
         $challengeId = (string) Str::uuid();
         $code = (string) random_int(100000, 999999);
         $ttl = max(60, (int) config('security.mfa.ttl_seconds', 300));
+        $expiresAt = now()->addSeconds($ttl)->timestamp;
 
         Cache::put('mfa:'.$challengeId, [
             'user_id' => $user->id,
             'code_hash' => hash_hmac('sha256', $code, (string) config('app.key')),
             'ip_hash' => hash('sha256', (string) $request->ip()),
+            'user_agent_hash' => hash('sha256', (string) $request->userAgent()),
             'attempts' => 0,
+            'expires_at' => $expiresAt,
         ], now()->addSeconds($ttl));
 
         try {
