@@ -1,0 +1,22 @@
+<?php
+
+return [
+    'mfa' => [
+        // En production, les roles sensibles passent obligatoirement par un
+        // second facteur envoye par email. Les tests et le developpement local
+        // peuvent le desactiver explicitement.
+        'enforce_sensitive_roles' => filter_var(
+            env(
+                'MFA_ENFORCE_SENSITIVE_ROLES',
+                env('APP_ENV', 'production') === 'production'
+            ),
+            FILTER_VALIDATE_BOOL
+        ),
+        'roles' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', env('MFA_SENSITIVE_ROLES', 'administrateur,medecin'))
+        ))),
+        'ttl_seconds' => (int) env('MFA_CODE_TTL_SECONDS', 300),
+        'max_attempts' => (int) env('MFA_MAX_ATTEMPTS', 5),
+    ],
+];
