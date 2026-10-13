@@ -80,7 +80,7 @@ class PermissionTest extends TestCase
         // (SCRUM-49) est la seule ecriture qui lui soit accordee. Tout le
         // reste doit rester en lecture : il ne modifie ni ne supprime aucun
         // dossier. Le perimetre "les siens" est applique par PerimetreDossier.
-        $ecrituresAutorisees = [Permission::RENDEZ_VOUS_CREATE];
+        $ecrituresAutorisees = [Permission::RENDEZ_VOUS_CREATE, Permission::AI_USE];
 
         foreach ($permissions as $permission) {
             if (in_array($permission, $ecrituresAutorisees, true)) {
@@ -110,6 +110,46 @@ class PermissionTest extends TestCase
                 "Le role patient ne doit pas detenir {$interdite->value}"
             );
         }
+    }
+
+    public function test_financial_and_room_permissions_follow_least_privilege(): void
+    {
+        foreach ([
+            Permission::FACTURES_READ,
+            Permission::FACTURES_CREATE,
+            Permission::FACTURES_UPDATE,
+            Permission::PAIEMENTS_READ,
+            Permission::PAIEMENTS_CREATE,
+            Permission::PAIEMENTS_UPDATE,
+        ] as $permission) {
+            $this->assertTrue(Role::ADMINISTRATEUR->accorde($permission));
+            $this->assertTrue(Role::SECRETAIRE->accorde($permission));
+            $this->assertFalse(Role::MEDECIN->accorde($permission));
+            $this->assertFalse(Role::INFIRMIER->accorde($permission));
+            $this->assertFalse(Role::PATIENT->accorde($permission));
+        }
+
+        foreach ([Permission::FACTURES_DELETE, Permission::PAIEMENTS_DELETE] as $permission) {
+            $this->assertTrue(Role::ADMINISTRATEUR->accorde($permission));
+            foreach ([Role::MEDECIN, Role::SECRETAIRE, Role::INFIRMIER, Role::PATIENT] as $role) {
+                $this->assertFalse($role->accorde($permission));
+            }
+        }
+
+        foreach ([Role::ADMINISTRATEUR, Role::MEDECIN, Role::SECRETAIRE, Role::INFIRMIER] as $role) {
+            $this->assertTrue($role->accorde(Permission::CHAMBRES_READ));
+        }
+
+        $this->assertFalse(Role::PATIENT->accorde(Permission::CHAMBRES_READ));
+    }
+
+    public function test_ai_access_is_explicit_and_not_granted_to_every_role(): void
+    {
+        foreach ([Role::ADMINISTRATEUR, Role::MEDECIN, Role::INFIRMIER, Role::PATIENT] as $role) {
+            $this->assertTrue($role->accorde(Permission::AI_USE));
+        }
+
+        $this->assertFalse(Role::SECRETAIRE->accorde(Permission::AI_USE));
     }
 
     public function test_every_permission_is_registered_as_a_gate(): void
