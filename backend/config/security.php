@@ -11,6 +11,12 @@ return [
         FILTER_VALIDATE_BOOL
     ),
 
+    'audit' => [
+        // Prefer a dedicated production key. APP_KEY is a safe fallback for
+        // development/testing so audit signatures are never plain hashes.
+        'hmac_key' => env('AUDIT_HMAC_KEY') ?: env('APP_KEY'),
+    ],
+
     'mfa' => [
         // En production, les roles sensibles passent obligatoirement par un
         // second facteur envoye par email. Les tests et le developpement local
