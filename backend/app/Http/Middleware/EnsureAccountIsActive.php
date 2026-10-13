@@ -14,7 +14,9 @@ class EnsureAccountIsActive
     {
         $user = $request->user();
 
-        if ($user !== null && strtolower((string) $user->statut) === 'inactif') {
+        $statut = $user === null ? '' : strtolower(trim((string) $user->statut));
+
+        if ($user !== null && $statut !== '' && $statut !== 'actif') {
             // Une desactivation doit invalider les sessions deja emises,
             // pas seulement empecher une nouvelle connexion.
             $user->tokens()->delete();
