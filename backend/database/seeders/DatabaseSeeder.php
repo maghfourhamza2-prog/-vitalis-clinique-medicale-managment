@@ -5,12 +5,27 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
         $now = now();
+
+        // Ne jamais versionner de mot de passe de demonstration connu.
+        // Les valeurs peuvent etre definies localement par environnement.
+        // A defaut, des secrets aleatoires sont generes a chaque seed.
+        $adminPassword = env('VITALIS_SEED_ADMIN_PASSWORD') ?: Str::random(32);
+        $medecinPassword = env('VITALIS_SEED_MEDECIN_PASSWORD') ?: Str::random(32);
+        $patientPassword = env('VITALIS_SEED_PATIENT_PASSWORD') ?: Str::random(32);
+
+        if ($this->command && app()->environment(['local', 'testing'])) {
+            $this->command->warn('Mots de passe de seed generes pour cet environnement uniquement.');
+            $this->command->line('Admin   : '.$adminPassword);
+            $this->command->line('Medecin : '.$medecinPassword);
+            $this->command->line('Patient : '.$patientPassword);
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -248,7 +263,7 @@ class DatabaseSeeder extends Seeder
         'name' => 'Administrateur',
         'prenom' => 'Vitalis',
         'email' => 'admin@vitalis.ma',
-        'password' => Hash::make('Vitalis@2026'),
+        'password' => Hash::make($adminPassword),
         'role' => 'administrateur',
         'telephone' => '+212539000001',
         'adresse' => 'Avenue Mohammed VI, Tanger',
@@ -265,7 +280,7 @@ class DatabaseSeeder extends Seeder
         'name' => 'El Amrani',
         'prenom' => 'Youssef',
         'email' => 'youssef.elamrani@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234501',
         'adresse' => 'Tanger',
@@ -282,7 +297,7 @@ class DatabaseSeeder extends Seeder
         'name' => 'Stitou',
         'prenom' => 'Mounia',
         'email' => 'mounia.stitou@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340101',
         'adresse' => 'Ksar El Kebir',
@@ -897,7 +912,7 @@ DB::table('users')->insert([
         'name' => 'Idrissi',
         'prenom' => 'Sara',
         'email' => 'sara.idrissi@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234507',
         'adresse' => 'Tanger',
@@ -914,7 +929,7 @@ DB::table('users')->insert([
         'name' => 'Lahlou',
         'prenom' => 'Hamza',
         'email' => 'hamza.lahlou@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234508',
         'adresse' => 'Tétouan',
@@ -931,7 +946,7 @@ DB::table('users')->insert([
         'name' => 'Mernissi',
         'prenom' => 'Houda',
         'email' => 'houda.mernissi@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340107',
         'adresse' => 'Larache',
@@ -948,7 +963,7 @@ DB::table('users')->insert([
         'name' => 'Skalli',
         'prenom' => 'Rachid',
         'email' => 'rachid.skalli@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340108',
         'adresse' => 'Chefchaouen',
@@ -965,7 +980,7 @@ DB::table('users')->insert([
         'name' => 'Belkadi',
         'prenom' => 'Ikram',
         'email' => 'ikram.belkadi@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340109',
         'adresse' => 'Kénitra',
@@ -1036,7 +1051,7 @@ DB::table('users')->insert([
         'name' => 'Berrada',
         'prenom' => 'Salma',
         'email' => 'salma.berrada@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234502',
         'adresse' => 'Rabat',
@@ -1053,7 +1068,7 @@ DB::table('users')->insert([
         'name' => 'Alaoui',
         'prenom' => 'Mehdi',
         'email' => 'mehdi.alaoui@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234503',
         'adresse' => 'Casablanca',
@@ -1070,7 +1085,7 @@ DB::table('users')->insert([
         'name' => 'Benjelloun',
         'prenom' => 'Imane',
         'email' => 'imane.benjelloun@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234504',
         'adresse' => 'Fès',
@@ -1087,7 +1102,7 @@ DB::table('users')->insert([
         'name' => 'Tazi',
         'prenom' => 'Nadia',
         'email' => 'nadia.tazi@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234505',
         'adresse' => 'Tanger',
@@ -1104,7 +1119,7 @@ DB::table('users')->insert([
         'name' => 'Chraibi',
         'prenom' => 'Omar',
         'email' => 'omar.chraibi@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234506',
         'adresse' => 'Marrakech',
@@ -1121,7 +1136,7 @@ DB::table('users')->insert([
         'name' => 'El Mansouri',
         'prenom' => 'Kawtar',
         'email' => 'kawtar.elmansouri@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234509',
         'adresse' => 'Agadir',
@@ -1138,7 +1153,7 @@ DB::table('users')->insert([
         'name' => 'Ait Lahcen',
         'prenom' => 'Adil',
         'email' => 'adil.aitlahcen@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234510',
         'adresse' => 'Béni Mellal',
@@ -1155,7 +1170,7 @@ DB::table('users')->insert([
         'name' => 'El Khatib',
         'prenom' => 'Othmane',
         'email' => 'othmane.elkhatib@vitalis.ma',
-        'password' => Hash::make('Medecin@2026'),
+        'password' => Hash::make($medecinPassword),
         'role' => 'medecin',
         'telephone' => '+212661234511',
         'adresse' => 'Meknès',
@@ -1174,7 +1189,7 @@ DB::table('users')->insert([
         'name' => 'El Fassi',
         'prenom' => 'Ayoub',
         'email' => 'ayoub.elfassi@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340102',
         'adresse' => 'Casablanca',
@@ -1191,7 +1206,7 @@ DB::table('users')->insert([
         'name' => 'Bennis',
         'prenom' => 'Khadija',
         'email' => 'khadija.bennis@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340103',
         'adresse' => 'Fès',
@@ -1208,7 +1223,7 @@ DB::table('users')->insert([
         'name' => 'Ouazzani',
         'prenom' => 'Anas',
         'email' => 'anas.ouazzani@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340104',
         'adresse' => 'Rabat',
@@ -1225,7 +1240,7 @@ DB::table('users')->insert([
         'name' => 'Amrani',
         'prenom' => 'Ghita',
         'email' => 'famille.amrani@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340105',
         'adresse' => 'Tanger',
@@ -1242,7 +1257,7 @@ DB::table('users')->insert([
         'name' => 'Naciri',
         'prenom' => 'Zakaria',
         'email' => 'zakaria.naciri@example.ma',
-        'password' => Hash::make('Patient@2026'),
+        'password' => Hash::make($patientPassword),
         'role' => 'patient',
         'telephone' => '+212612340106',
         'adresse' => 'Kénitra',
