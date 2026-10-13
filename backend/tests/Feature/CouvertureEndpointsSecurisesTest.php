@@ -49,6 +49,7 @@ class CouvertureEndpointsSecurisesTest extends TestCase
      */
     private const ROUTES_PUBLIQUES = [
         'api/login',
+        'api/login/mfa',
         'api/register',
         'api/forgot-password',
         'api/reset-password',
