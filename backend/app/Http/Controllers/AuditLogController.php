@@ -35,8 +35,14 @@ class AuditLogController extends Controller
             $query->where('created_at', '<=', $validated['to']);
         }
 
+        $logs = $query->paginate(50);
+
+        $logs->getCollection()->each(function (AuditLog $log) {
+            $log->setAttribute('integrity_valid', $log->integriteValide());
+        });
+
         return response()->json([
-            'audit_logs' => $query->paginate(50),
+            'audit_logs' => $logs,
         ]);
     }
 }
