@@ -168,7 +168,9 @@ class SecurityHardeningTest extends TestCase
             'user_id' => $admin->id,
             'code_hash' => hash_hmac('sha256', $code, (string) config('app.key')),
             'ip_hash' => hash('sha256', '127.0.0.1'),
+            'user_agent_hash' => hash('sha256', ''),
             'attempts' => 0,
+            'expires_at' => now()->addMinutes(5)->timestamp,
         ], now()->addMinutes(5));
 
         $this->postJson('/api/login/mfa', [
@@ -184,4 +186,15 @@ class SecurityHardeningTest extends TestCase
             'code' => $code,
         ])->assertStatus(401);
     }
+
+    public function test_api_responses_include_security_headers(): void
+    {
+        $response = $this->postJson('/api/login', []);
+
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $response->assertHeader('X-Frame-Options', 'DENY');
+        $response->assertHeader('Referrer-Policy', 'no-referrer');
+        $response->assertHeader('Cache-Control');
+    }
+
 }
