@@ -43,6 +43,10 @@ export const PERMISSIONS_PAR_ROLE = {
     'ordonnances.read', 'ordonnances.create', 'ordonnances.update', 'ordonnances.delete',
     'examens.read', 'examens.create', 'examens.update', 'examens.delete',
     'hospitalisations.read', 'hospitalisations.create', 'hospitalisations.update', 'hospitalisations.delete',
+    'factures.read', 'factures.create', 'factures.update', 'factures.delete',
+    'paiements.read', 'paiements.create', 'paiements.update', 'paiements.delete',
+    'chambres.read', 'chambres.create', 'chambres.update', 'chambres.delete',
+    'ai.use', 'audit-logs.read',
     'medecins.read', 'medecins.create', 'medecins.update', 'medecins.delete',
     'specialites.read', 'specialites.create', 'specialites.update', 'specialites.delete',
     'indicateurs.read', 'statistiques.read',
@@ -55,6 +59,7 @@ export const PERMISSIONS_PAR_ROLE = {
     'ordonnances.read', 'ordonnances.create', 'ordonnances.update',
     'examens.read',
     'hospitalisations.read', 'hospitalisations.create', 'hospitalisations.update',
+    'chambres.read', 'ai.use',
     'medecins.read', 'specialites.read',
     'indicateurs.read',
     'rendez-vous.read', 'rendez-vous.create', 'rendez-vous.update'
@@ -64,6 +69,9 @@ export const PERMISSIONS_PAR_ROLE = {
     'patients.read', 'patients.create', 'patients.update',
     'examens.read',
     'hospitalisations.read',
+    'factures.read', 'factures.create', 'factures.update',
+    'paiements.read', 'paiements.create', 'paiements.update',
+    'chambres.read',
     'medecins.read', 'specialites.read',
     'indicateurs.read',
     'rendez-vous.read', 'rendez-vous.create', 'rendez-vous.update', 'rendez-vous.delete'
@@ -75,6 +83,7 @@ export const PERMISSIONS_PAR_ROLE = {
     'ordonnances.read',
     'examens.read', 'examens.create', 'examens.update',
     'hospitalisations.read', 'hospitalisations.create', 'hospitalisations.update',
+    'chambres.read', 'ai.use',
     'medecins.read', 'specialites.read',
     'indicateurs.read',
     'rendez-vous.read'
@@ -85,6 +94,7 @@ export const PERMISSIONS_PAR_ROLE = {
     'ordonnances.read',
     'examens.read',
     'hospitalisations.read',
+    'ai.use',
     'rendez-vous.read', 'rendez-vous.create'
   ]
 }
