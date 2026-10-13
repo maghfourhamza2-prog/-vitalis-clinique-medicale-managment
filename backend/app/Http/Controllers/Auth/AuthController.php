@@ -180,6 +180,52 @@ class AuthController extends Controller
             'user' => $request->user(),
         ], 200);
     }
+
+    public function sessions(Request $request)
+    {
+        $current = $request->user()->currentAccessToken();
+        $currentId = $current instanceof PersonalAccessToken ? $current->id : null;
+
+        $sessions = $request->user()->tokens()
+            ->latest('last_used_at')
+            ->latest('created_at')
+            ->get()
+            ->map(fn (PersonalAccessToken $token) => [
+                'id' => $token->id,
+                'name' => $token->name,
+                'last_used_at' => $token->last_used_at,
+                'created_at' => $token->created_at,
+                'expires_at' => $token->expires_at,
+                'current' => $currentId !== null && $token->id === $currentId,
+            ]);
+
+        return response()->json(['sessions' => $sessions]);
+    }
+
+    public function revokeSession(Request $request, int $tokenId)
+    {
+        $token = $request->user()->tokens()->whereKey($tokenId)->firstOrFail();
+        $token->delete();
+
+        return response()->json([
+            'message' => 'Session révoquée avec succès',
+        ]);
+    }
+
+    public function logoutAll(Request $request)
+    {
+        $request->user()->tokens()->delete();
+
+        if ($request->hasSession()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return response()->json([
+            'message' => 'Toutes les sessions ont été révoquées',
+        ]);
+    }
         /**
      * Demander un lien de réinitialisation de mot de passe
      */
