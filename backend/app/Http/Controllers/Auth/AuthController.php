@@ -120,7 +120,7 @@ class AuthController extends Controller
             // SCRUM-510 : trace les echecs pour permettre de detecter une
             // attaque par force brute. Le mot de passe n'est jamais journalise.
             Log::warning('Tentative de connexion echouee', [
-                'email' => $request->input('email'),
+                'email_hash' => hash('sha256', Str::lower((string) $request->input('email'))),
                 'ip' => $request->ip(),
             ]);
 
@@ -393,7 +393,7 @@ class AuthController extends Controller
             // SCRUM-526 : l'echec est journalise pour l'equipe, jamais renvoye
             // au client.
             Log::warning('Lien de reinitialisation non envoye', [
-                'email' => $request->input('email'),
+                'email_hash' => hash('sha256', Str::lower((string) $request->input('email'))),
                 'ip' => $request->ip(),
                 'statut' => $status,
             ]);
