@@ -82,13 +82,25 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'role' => ['required', Rule::enum(Role::class)],
             'statut' => ['nullable', 'string', Rule::in(['Actif', 'Inactif'])],
             'id_medecin' => ['nullable', 'integer', 'exists:medecins,id_medecin'],
             'id_patient' => ['nullable', 'integer', 'exists:patients,id_patient'],
         ]);
 
+        if (
+            $request->user()->is($user)
+            && strtolower((string) ($validated['statut'] ?? $user->statut)) === 'inactif'
+        ) {
+            return response()->json([
+                'message' => 'Vous ne pouvez pas désactiver votre propre compte',
+            ], 403);
+        }
+
         $user->update($validated);
+
+        if (strtolower((string) $user->statut) === 'inactif') {
+            $user->tokens()->delete();
+        }
 
         return response()->json([
             'message' => 'Utilisateur modifié avec succès',
