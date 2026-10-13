@@ -39,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // ce limiteur : /api/login et les routes de mot de passe ont deja les
         // leurs, plus stricts (SCRUM-510).
         $middleware->throttleApi('api');
+        $middleware->appendToGroup('api', \App\Http\Middleware\SecurityHeaders::class);
 
         // SCRUM-529 - Ne pas rediriger un visiteur non authentifie.
         //
