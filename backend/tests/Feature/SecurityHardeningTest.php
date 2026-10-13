@@ -14,6 +14,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -444,6 +445,29 @@ class SecurityHardeningTest extends TestCase
 
         $this->expectException(\LogicException::class);
         $audit->update(['path' => '/api/tampered']);
+    }
+
+
+    public function test_failed_login_does_not_write_raw_email_to_logs(): void
+    {
+        $email = 'private-patient@example.com';
+        User::factory()->create([
+            'email' => $email,
+            'password' => 'CorrectPassword123',
+        ]);
+
+        Log::spy();
+
+        $this->postJson('/api/login', [
+            'email' => $email,
+            'password' => 'WrongPassword123',
+        ])->assertStatus(401);
+
+        Log::shouldHaveReceived('warning')->withArgs(
+            fn ($message, $context = []) =>
+                ! str_contains(json_encode([$message, $context]), $email)
+                && array_key_exists('email_hash', $context)
+        );
     }
 
 }
