@@ -190,6 +190,7 @@ class SecurityHardeningTest extends TestCase
         $this->assertSame('GET', $audit->method);
         $this->assertSame('/api/me', $audit->path);
         $this->assertSame(200, $audit->status_code);
+        $this->assertTrue($audit->integriteValide());
 
         $this->assertFalse(array_key_exists('request_body', $audit->getAttributes()));
         $this->assertFalse(array_key_exists('response_body', $audit->getAttributes()));
@@ -268,23 +269,25 @@ class SecurityHardeningTest extends TestCase
             'user_id' => $admin->id,
             'code_hash' => hash_hmac('sha256', $code, (string) config('app.key')),
             'ip_hash' => hash('sha256', '127.0.0.1'),
-            'user_agent_hash' => hash('sha256', ''),
+            'user_agent_hash' => hash('sha256', 'vitalis-security-test'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(5)->timestamp,
         ], now()->addMinutes(5));
 
-        $this->postJson('/api/login/mfa', [
-            'challenge_id' => $challengeId,
-            'code' => $code,
-        ])->assertStatus(200)
+        $this->withHeader('User-Agent', 'vitalis-security-test')
+            ->postJson('/api/login/mfa', [
+                'challenge_id' => $challengeId,
+                'code' => $code,
+            ])->assertStatus(200)
             ->assertJsonStructure(['token', 'user']);
 
         $this->assertNull(Cache::get('mfa:'.$challengeId));
 
-        $this->postJson('/api/login/mfa', [
-            'challenge_id' => $challengeId,
-            'code' => $code,
-        ])->assertStatus(401);
+        $this->withHeader('User-Agent', 'vitalis-security-test')
+            ->postJson('/api/login/mfa', [
+                'challenge_id' => $challengeId,
+                'code' => $code,
+            ])->assertStatus(401);
     }
 
     public function test_api_responses_include_security_headers(): void
@@ -424,6 +427,23 @@ class SecurityHardeningTest extends TestCase
             'path' => '/api/audit-logs',
             'status_code' => 403,
         ]);
+    }
+
+
+    public function test_audit_rows_are_immutable(): void
+    {
+        $user = User::factory()->create(['statut' => 'Actif']);
+        $token = $user->createToken('audit')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/me')
+            ->assertStatus(200);
+
+        $audit = AuditLog::query()->latest('id')->firstOrFail();
+        $this->assertTrue($audit->integriteValide());
+
+        $this->expectException(\LogicException::class);
+        $audit->update(['path' => '/api/tampered']);
     }
 
 }
