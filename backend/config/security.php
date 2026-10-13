@@ -1,6 +1,16 @@
 <?php
 
 return [
+    // Le frontend demande deja de contacter l'administrateur. En production,
+    // l'API suit cette politique et ferme l'inscription libre.
+    'allow_public_registration' => filter_var(
+        env(
+            'ALLOW_PUBLIC_REGISTRATION',
+            env('APP_ENV', 'production') !== 'production'
+        ),
+        FILTER_VALIDATE_BOOL
+    ),
+
     'mfa' => [
         // En production, les roles sensibles passent obligatoirement par un
         // second facteur envoye par email. Les tests et le developpement local
