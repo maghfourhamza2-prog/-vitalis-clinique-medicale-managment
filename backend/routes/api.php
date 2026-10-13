@@ -1,5 +1,6 @@
 <?php
 use App\Http\Controllers\AiController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\RoleController;
 use Illuminate\Support\Facades\DB;
@@ -41,10 +42,13 @@ Route::middleware('throttle:auth-public')->group(function () {
 
 
 // Routes accessibles uniquement aux utilisateurs authentifiés
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'account.active', 'audit.api'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])
+        ->middleware('can:audit-logs.read');
     // Assistant médical IA : permission explicite, en plus de l'authentification.
     Route::post('/ai/predict', [AiController::class, 'predict'])
         ->middleware('can:ai.use');
