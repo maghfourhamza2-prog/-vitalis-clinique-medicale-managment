@@ -124,6 +124,25 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
+
+        // Un compte desactive ne doit pas pouvoir continuer a obtenir de
+        // nouveaux jetons. La comparaison est insensible a la casse car les
+        // anciennes donnees utilisent a la fois "actif" et "Actif".
+        if (strtolower((string) $user->statut) === 'inactif') {
+            Auth::guard('web')->logout();
+
+            Log::warning('Connexion refusee pour un compte inactif', [
+                'user_id' => $user->id,
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json([
+                'message' => 'Identifiants invalides',
+            ], 401);
+        }
+
+        $user->forceFill(['derniere_connexion' => now()])->save();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
