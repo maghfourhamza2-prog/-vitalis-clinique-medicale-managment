@@ -2,258 +2,210 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Hospitalisation;
-use Illuminate\Http\Request;
+use App\Enums\Role;
 use App\Models\Chambre;
+use App\Models\Hospitalisation;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 class HospitalisationController extends Controller
 {
-    // Lister toutes les hospitalisations
-    public function index()
+    /**
+     * Applique le meme cloisonnement que les autres dossiers medicaux :
+     * medecin -> ses hospitalisations, patient -> les siennes, roles globaux -> tout.
+     */
+    private function limiterAuPerimetre(Builder $requete, Request $request): Builder
     {
-        $hospitalisations = Hospitalisation::with([
-            'patient',
-            'chambre',
-            'medecin'
-        ])->get();
+        $utilisateur = $request->user();
+        $role = Role::tryFrom((string) $utilisateur->role);
 
-        return response()->json([
-            'hospitalisations' => $hospitalisations
-        ], 200);
+        if ($role === null) {
+            return $requete->whereRaw('1 = 0');
+        }
+
+        if ($role->accedeATousLesDossiers()) {
+            return $requete;
+        }
+
+        return $role === Role::MEDECIN
+            ? $requete->where('id_medecin', $utilisateur->id_medecin)
+            : $requete->where('id_patient', $utilisateur->id_patient);
     }
 
-    // Afficher une hospitalisation
-    public function show($id)
+    public function index(Request $request)
     {
-        $hospitalisation = Hospitalisation::with([
-            'patient',
-            'chambre',
-            'medecin'
-        ])->findOrFail($id);
+        $hospitalisations = $this->limiterAuPerimetre(Hospitalisation::query(), $request)
+            ->with(['patient', 'chambre', 'medecin'])
+            ->get();
 
-        return response()->json([
-            'hospitalisation' => $hospitalisation
-        ], 200);
+        return response()->json(['hospitalisations' => $hospitalisations], 200);
     }
 
-    // Ajouter une hospitalisation
+    public function show(Request $request, $id)
+    {
+        $hospitalisation = $this->trouverOuRefuser(Hospitalisation::find($id), $request);
+        Gate::authorize('hospitalisations.read', $hospitalisation);
+
+        $hospitalisation->load(['patient', 'chambre', 'medecin']);
+
+        return response()->json(['hospitalisation' => $hospitalisation], 200);
+    }
+
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'date_entree' => ['required', 'date'],
-            'heure_entree' => ['required', 'date_format:H:i'],
-            'date_sortie' => ['nullable', 'date'],
-            'motif_hospitalisation' => ['required', 'string'],
-            'diagnostic_entree' => ['required', 'string'],
-            'statut' => ['required', 'string'],
-            'observations' => ['nullable', 'string'],
+        $validated = $request->validate($this->regles(creation: true));
 
-            'id_patient' => [
-                'required',
-                'integer',
-                'exists:patients,id_patient'
-            ],
-
-            'id_chambre' => [
-                'required',
-                'integer',
-                'exists:chambres,id_chambre'
-            ],
-
-            'id_medecin' => [
-                'required',
-                'integer',
-                'exists:medecins,id_medecin'
-            ],
-        ]);
-
-        $hospitalisation = Hospitalisation::create($validated);
+        $hospitalisation = new Hospitalisation($validated);
+        Gate::authorize('hospitalisations.create', $hospitalisation);
+        $hospitalisation->save();
 
         return response()->json([
             'message' => 'Hospitalisation ajoutée avec succès',
-            'hospitalisation' => $hospitalisation
+            'hospitalisation' => $hospitalisation,
         ], 201);
     }
 
-    // Modifier une hospitalisation
     public function update(Request $request, $id)
-   {
-            $hospitalisation = Hospitalisation::findOrFail($id);
+    {
+        $hospitalisation = $this->trouverOuRefuser(Hospitalisation::find($id), $request);
+        Gate::authorize('hospitalisations.update', $hospitalisation);
 
-             $validated = $request->validate([
-            'date_entree' => ['sometimes', 'required', 'date'],
-            'heure_entree' => ['sometimes', 'required', 'date_format:H:i'],
-            'date_sortie' => ['sometimes', 'nullable', 'date'],
-            'motif_hospitalisation' => ['sometimes', 'required', 'string'],
-            'diagnostic_entree' => ['sometimes', 'required', 'string'],
-            'statut' => ['sometimes', 'required', 'string'],
-            'observations' => ['sometimes', 'nullable', 'string'],
+        $validated = $request->validate($this->regles(creation: false));
 
-            'id_patient' => [
-                'sometimes',
-                'required',
-                'integer',
-                'exists:patients,id_patient'
-            ],
-
-            'id_chambre' => [
-                'sometimes',
-                'required',
-                'integer',
-                'exists:chambres,id_chambre'
-            ],
-
-            'id_medecin' => [
-                'sometimes',
-                'required',
-                'integer',
-                'exists:medecins,id_medecin'
-            ],
-        ]);
+        $apresModification = (clone $hospitalisation)->fill($validated);
+        Gate::authorize('hospitalisations.update', $apresModification);
 
         $hospitalisation->update($validated);
 
         return response()->json([
             'message' => 'Hospitalisation modifiée avec succès',
-            'hospitalisation' => $hospitalisation
+            'hospitalisation' => $hospitalisation,
         ], 200);
     }
 
-
-        // Admettre un patient
     public function admettre(Request $request)
-   {
+    {
         $validated = $request->validate([
-        'date_entree' => ['required', 'date'],
-        'heure_entree' => ['required', 'date_format:H:i'],
-        'motif_hospitalisation' => ['required', 'string'],
-        'diagnostic_entree' => ['required', 'string'],
-        'observations' => ['nullable', 'string'],
+            'date_entree' => ['required', 'date'],
+            'heure_entree' => ['required', 'date_format:H:i'],
+            'motif_hospitalisation' => ['required', 'string'],
+            'diagnostic_entree' => ['required', 'string'],
+            'observations' => ['nullable', 'string'],
+            'id_patient' => ['required', 'integer', 'exists:patients,id_patient'],
+            'id_chambre' => ['required', 'integer', 'exists:chambres,id_chambre'],
+            'id_medecin' => ['required', 'integer', 'exists:medecins,id_medecin'],
+        ]);
 
-        'id_patient' => [
-            'required',
-            'integer',
-            'exists:patients,id_patient'
-        ],
-
-        'id_chambre' => [
-            'required',
-            'integer',
-            'exists:chambres,id_chambre'
-        ],
-
-        'id_medecin' => [
-            'required',
-            'integer',
-            'exists:medecins,id_medecin'
-        ],
-    ]);
-
-        $hospitalisation = DB::transaction(function () use ($validated) {
-
-        $chambre = Chambre::findOrFail($validated['id_chambre']);
-
-        // Compter les patients actuellement hospitalisés dans cette chambre
-        $nombrePatients = Hospitalisation::where(
-            'id_chambre',
-            $chambre->id_chambre
-        )
-        ->where('statut', 'en_cours')
-        ->count();
-
-        // Vérifier si la capacité maximale est atteinte
-        if ($nombrePatients >= $chambre->capacite) {
-            throw ValidationException::withMessages([
-                'id_chambre' => 'Cette chambre a atteint sa capacité maximale.'
-            ]);
-        }
-
-        // Créer l'hospitalisation
-        $hospitalisation = Hospitalisation::create([
+        $candidat = new Hospitalisation([
             ...$validated,
             'date_sortie' => null,
             'statut' => 'en_cours',
         ]);
+        Gate::authorize('hospitalisations.create', $candidat);
 
-        // Le nouveau patient doit maintenant être compté
-        $nombrePatients++;
+        $hospitalisation = DB::transaction(function () use ($candidat) {
+            $chambre = Chambre::whereKey($candidat->id_chambre)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        // La chambre devient occupée seulement lorsqu'elle est complète
-        if ($nombrePatients >= $chambre->capacite) {
+            $nombrePatients = Hospitalisation::where('id_chambre', $chambre->id_chambre)
+                ->where('statut', 'en_cours')
+                ->count();
+
+            if ($nombrePatients >= $chambre->capacite) {
+                throw ValidationException::withMessages([
+                    'id_chambre' => 'Cette chambre a atteint sa capacité maximale.',
+                ]);
+            }
+
+            $candidat->save();
+            $nombrePatients++;
+
             $chambre->update([
-                'statut' => 'occupee'
+                'statut' => $nombrePatients >= $chambre->capacite ? 'occupee' : 'disponible',
             ]);
-        } else {
-            $chambre->update([
-                'statut' => 'disponible'
-            ]);
-        }
 
-        return $hospitalisation;
-    });
+            return $candidat;
+        });
 
         return response()->json([
-        'message' => 'Patient admis avec succès',
-        'hospitalisation' => $hospitalisation
-    ], 201);
+            'message' => 'Patient admis avec succès',
+            'hospitalisation' => $hospitalisation,
+        ], 201);
     }
-
 
     public function sortir(Request $request, $id)
     {
         $validated = $request->validate([
-        'date_sortie' => ['required', 'date'],
-    ]);
-
-        $hospitalisation = DB::transaction(function () use ($validated, $id) {
-
-        $hospitalisation = Hospitalisation::findOrFail($id);
-
-        if ($hospitalisation->statut !== 'en_cours') {
-            throw ValidationException::withMessages([
-                'hospitalisation' => 'Cette hospitalisation est déjà terminée.'
-            ]);
-        }
-
-        if ($validated['date_sortie'] < $hospitalisation->date_entree) {
-            throw ValidationException::withMessages([
-                'date_sortie' => 'La date de sortie ne peut pas être antérieure à la date d\'entrée.'
-            ]);
-        }
-
-        // Terminer l'hospitalisation
-        $hospitalisation->update([
-            'date_sortie' => $validated['date_sortie'],
-            'statut' => 'terminee',
+            'date_sortie' => ['required', 'date'],
         ]);
 
-        // Une place vient de se libérer dans la chambre
-        $chambre = Chambre::findOrFail($hospitalisation->id_chambre);
+        $hospitalisation = $this->trouverOuRefuser(Hospitalisation::find($id), $request);
+        Gate::authorize('hospitalisations.update', $hospitalisation);
 
-        $chambre->update([
-            'statut' => 'disponible'
-        ]);
+        DB::transaction(function () use ($validated, $hospitalisation) {
+            if ($hospitalisation->statut !== 'en_cours') {
+                throw ValidationException::withMessages([
+                    'hospitalisation' => 'Cette hospitalisation est déjà terminée.',
+                ]);
+            }
 
-        return $hospitalisation;
-    });
+            if ($validated['date_sortie'] < $hospitalisation->date_entree) {
+                throw ValidationException::withMessages([
+                    'date_sortie' => 'La date de sortie ne peut pas être antérieure à la date d\'entrée.',
+                ]);
+            }
 
-    return response()->json([
-        'message' => 'Sortie du patient enregistrée avec succès',
-        'hospitalisation' => $hospitalisation
-    ], 200);
+            $hospitalisation->update([
+                'date_sortie' => $validated['date_sortie'],
+                'statut' => 'terminee',
+            ]);
+
+            Chambre::whereKey($hospitalisation->id_chambre)
+                ->lockForUpdate()
+                ->firstOrFail()
+                ->update(['statut' => 'disponible']);
+        });
+
+        return response()->json([
+            'message' => 'Sortie du patient enregistrée avec succès',
+            'hospitalisation' => $hospitalisation->fresh(),
+        ], 200);
     }
 
-    // Supprimer une hospitalisation
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $hospitalisation = Hospitalisation::findOrFail($id);
+        $hospitalisation = $this->trouverOuRefuser(Hospitalisation::find($id), $request);
+        Gate::authorize('hospitalisations.delete', $hospitalisation);
 
         $hospitalisation->delete();
 
         return response()->json([
-            'message' => 'Hospitalisation supprimée avec succès'
+            'message' => 'Hospitalisation supprimée avec succès',
         ], 200);
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function regles(bool $creation): array
+    {
+        $requis = $creation ? 'required' : 'sometimes';
+
+        return [
+            'date_entree' => [$requis, 'date'],
+            'heure_entree' => [$requis, 'date_format:H:i'],
+            'date_sortie' => ['nullable', 'date'],
+            'motif_hospitalisation' => [$requis, 'string'],
+            'diagnostic_entree' => [$requis, 'string'],
+            'statut' => [$requis, 'string'],
+            'observations' => ['nullable', 'string'],
+            'id_patient' => [$requis, 'integer', 'exists:patients,id_patient'],
+            'id_chambre' => [$requis, 'integer', 'exists:chambres,id_chambre'],
+            'id_medecin' => [$requis, 'integer', 'exists:medecins,id_medecin'],
+        ];
     }
 }
