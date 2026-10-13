@@ -73,6 +73,9 @@ enum Permission: string
     // Assistant medical : permission explicite afin qu'un nouveau role
     // n'obtienne jamais l'acces automatiquement par le seul fait d'etre connecte.
     case AI_USE = 'ai.use';
+
+    // Journal de securite : lecture reservee a l'administration.
+    case AUDIT_LOGS_READ = 'audit-logs.read';
  // SCRUM-49 - Gestion des rendez-vous '( bax n3adlo les acces Gestion des rendez-vous  )
     //
     // La suppression reste reservee a l'administrateur et au secretariat :
