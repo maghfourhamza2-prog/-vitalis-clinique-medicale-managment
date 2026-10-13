@@ -7,6 +7,9 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -141,6 +144,118 @@ class AuthController extends Controller
             ], 401);
         }
 
+        if ($this->mfaRequisePour($user)) {
+            // Auth::attempt peut ouvrir une session web. Aucun acces ne doit
+            // survivre entre le premier et le second facteur.
+            Auth::guard('web')->logout();
+
+            return $this->demarrerMfa($request, $user);
+        }
+
+        return $this->reponseConnexionReussie($user);
+    }
+
+    public function verifyMfa(Request $request)
+    {
+        $validated = $request->validate([
+            'challenge_id' => ['required', 'string', 'uuid'],
+            'code' => ['required', 'digits:6'],
+        ]);
+
+        $cacheKey = 'mfa:'.$validated['challenge_id'];
+        $challenge = Cache::get($cacheKey);
+
+        if (! is_array($challenge)) {
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        $maxAttempts = max(1, (int) config('security.mfa.max_attempts', 5));
+        $attempts = (int) ($challenge['attempts'] ?? 0) + 1;
+
+        if ($attempts > $maxAttempts) {
+            Cache::forget($cacheKey);
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        $challenge['attempts'] = $attempts;
+        Cache::put(
+            $cacheKey,
+            $challenge,
+            now()->addSeconds(max(60, (int) config('security.mfa.ttl_seconds', 300)))
+        );
+
+        $ipHash = hash('sha256', (string) $request->ip());
+        $codeHash = hash_hmac('sha256', $validated['code'], (string) config('app.key'));
+
+        if (
+            ! hash_equals((string) ($challenge['ip_hash'] ?? ''), $ipHash)
+            || ! hash_equals((string) ($challenge['code_hash'] ?? ''), $codeHash)
+        ) {
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        $user = User::find($challenge['user_id'] ?? null);
+
+        if ($user === null || strtolower((string) $user->statut) === 'inactif') {
+            Cache::forget($cacheKey);
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        Cache::forget($cacheKey);
+
+        return $this->reponseConnexionReussie($user);
+    }
+
+    private function mfaRequisePour(User $user): bool
+    {
+        return (bool) config('security.mfa.enforce_sensitive_roles', false)
+            && in_array((string) $user->role, config('security.mfa.roles', []), true);
+    }
+
+    private function demarrerMfa(Request $request, User $user)
+    {
+        $challengeId = (string) Str::uuid();
+        $code = (string) random_int(100000, 999999);
+        $ttl = max(60, (int) config('security.mfa.ttl_seconds', 300));
+
+        Cache::put('mfa:'.$challengeId, [
+            'user_id' => $user->id,
+            'code_hash' => hash_hmac('sha256', $code, (string) config('app.key')),
+            'ip_hash' => hash('sha256', (string) $request->ip()),
+            'attempts' => 0,
+        ], now()->addSeconds($ttl));
+
+        try {
+            Mail::raw(
+                "Votre code de sécurité VITALIS est : {$code}\n\nCe code expire dans ".ceil($ttl / 60)." minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)
+                        ->subject('Code de sécurité VITALIS');
+                }
+            );
+        } catch (\Throwable $e) {
+            Cache::forget('mfa:'.$challengeId);
+
+            Log::error('Echec envoi code MFA', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Le second facteur est temporairement indisponible.',
+            ], 503);
+        }
+
+        return response()->json([
+            'message' => 'Un code de sécurité a été envoyé.',
+            'mfa_required' => true,
+            'challenge_id' => $challengeId,
+            'expires_in' => $ttl,
+        ], 202);
+    }
+
+    private function reponseConnexionReussie(User $user)
+    {
         $user->forceFill(['derniere_connexion' => now()])->save();
 
         $token = $user->createToken('auth_token')->plainTextToken;
