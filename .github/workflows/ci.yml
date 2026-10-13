@@ -108,3 +108,36 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+
+
+  container-security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Construire l'image backend de production
+        run: docker build -f backend/Dockerfile.cloudrun -t vitalis-backend-ci:security backend
+
+      - name: Scanner l'image backend
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: vitalis-backend-ci:security
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Construire l'image frontend de production
+        run: |
+          docker build             -f frontend/Dockerfile.prod             --build-arg VITE_API_URL="https://api.invalid/api"             -t vitalis-frontend-ci:security             frontend
+
+      - name: Scanner l'image frontend
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: vitalis-frontend-ci:security
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
