@@ -26,14 +26,6 @@ use App\Http\Controllers\ResultatController;
 | API Routes
 |--------------------------------------------------------------------------
 */
-Route::post('/users', [UserController::class, 'store'])
-    ->middleware('can:users.create');
-
-Route::put('/users/{id}', [UserController::class, 'update'])
-    ->middleware('can:users.update');
-
-Route::delete('/users/{id}', [UserController::class, 'destroy'])
-    ->middleware('can:users.delete');
 // Routes publiques d'authentification
 // SCRUM-510 : ces routes sont accessibles sans jeton, elles sont donc limitees
 // en debit pour empecher la force brute et les envois en masse. Les limiteurs
@@ -53,9 +45,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
-    // Assistant médical IA
-    Route::post('/ai/predict', [AiController::class, 'predict']);
-    Route::post('/ai/chat', [AiController::class, 'chat']);
+    // Assistant médical IA : permission explicite, en plus de l'authentification.
+    Route::post('/ai/predict', [AiController::class, 'predict'])
+        ->middleware('can:ai.use');
+    Route::post('/ai/chat', [AiController::class, 'chat'])
+        ->middleware('can:ai.use');
     // Tableau de bord principal.
     //
     // Seule route /dashboard/* sans permission, et c'est volontaire : le
@@ -249,16 +243,25 @@ Route::delete('/users/{id}', [UserController::class, 'destroy'])
     )->middleware('can:ordonnances.read');
 
 
-    //Gestion des factures
-    Route::get('/factures', [FactureController::class, 'index']);
-    Route::get('/factures/{id}', [FactureController::class, 'show']);
-    Route::post('/factures', [FactureController::class, 'store']);
-    Route::put('/factures/{id}', [FactureController::class, 'update']);
-    Route::patch('/factures/{id}/annuler', [FactureController::class, 'annuler']);
-    Route::get('/patients/{idPatient}/factures', [FactureController::class, 'historiquePatient']);
-    Route::get('/factures/{id}/imprimer', [FactureController::class, 'imprimer']);
-    Route::get('/factures/{id}/telecharger', [FactureController::class, 'telecharger']);
-    Route::delete('/factures/{id}', [FactureController::class, 'destroy']);
+    // Gestion des factures
+    Route::get('/factures', [FactureController::class, 'index'])
+        ->middleware('can:factures.read');
+    Route::get('/factures/{id}', [FactureController::class, 'show'])
+        ->middleware('can:factures.read');
+    Route::post('/factures', [FactureController::class, 'store'])
+        ->middleware('can:factures.create');
+    Route::put('/factures/{id}', [FactureController::class, 'update'])
+        ->middleware('can:factures.update');
+    Route::patch('/factures/{id}/annuler', [FactureController::class, 'annuler'])
+        ->middleware('can:factures.update');
+    Route::get('/patients/{idPatient}/factures', [FactureController::class, 'historiquePatient'])
+        ->middleware('can:factures.read');
+    Route::get('/factures/{id}/imprimer', [FactureController::class, 'imprimer'])
+        ->middleware('can:factures.read');
+    Route::get('/factures/{id}/telecharger', [FactureController::class, 'telecharger'])
+        ->middleware('can:factures.read');
+    Route::delete('/factures/{id}', [FactureController::class, 'destroy'])
+        ->middleware('can:factures.delete');
 // Gestion des consultations (SCRUM-37)
 Route::get('/consultations/stats', [ConsultationController::class, 'stats'])
     ->middleware('can:consultations.read');
@@ -273,42 +276,70 @@ Route::put('/consultations/{id}', [ConsultationController::class, 'update'])
 Route::delete('/consultations/{id}', [ConsultationController::class, 'destroy'])
     ->middleware('can:consultations.delete');
     // Gestion des paiements
-    Route::get('/paiements', [PaiementController::class, 'index']);
-    Route::get('/paiements/{id}', [PaiementController::class, 'show']);
-    Route::post('/paiements', [PaiementController::class, 'store']);
-    Route::put('/paiements/{id}', [PaiementController::class, 'update']);
-    Route::delete('/paiements/{id}', [PaiementController::class, 'destroy']);
+    Route::get('/paiements', [PaiementController::class, 'index'])
+        ->middleware('can:paiements.read');
+    Route::get('/paiements/{id}', [PaiementController::class, 'show'])
+        ->middleware('can:paiements.read');
+    Route::post('/paiements', [PaiementController::class, 'store'])
+        ->middleware('can:paiements.create');
+    Route::put('/paiements/{id}', [PaiementController::class, 'update'])
+        ->middleware('can:paiements.update');
+    Route::delete('/paiements/{id}', [PaiementController::class, 'destroy'])
+        ->middleware('can:paiements.delete');
 
-    // Gestion des hospitalisations 
-    Route::get('/hospitalisations', [HospitalisationController::class, 'index']);
-    Route::post('/hospitalisations', [HospitalisationController::class, 'store']);
-    Route::post('/hospitalisations/admettre', [HospitalisationController::class, 'admettre']);
-    Route::patch('/hospitalisations/{id}/sortir', [HospitalisationController::class, 'sortir']);
-    Route::get('/hospitalisations/{id}', [HospitalisationController::class, 'show']);
-    Route::put('/hospitalisations/{id}', [HospitalisationController::class, 'update']);
-    Route::delete('/hospitalisations/{id}', [HospitalisationController::class, 'destroy']);
+    // Gestion des hospitalisations
+    Route::get('/hospitalisations', [HospitalisationController::class, 'index'])
+        ->middleware('can:hospitalisations.read');
+    Route::post('/hospitalisations', [HospitalisationController::class, 'store'])
+        ->middleware('can:hospitalisations.create');
+    Route::post('/hospitalisations/admettre', [HospitalisationController::class, 'admettre'])
+        ->middleware('can:hospitalisations.create');
+    Route::patch('/hospitalisations/{id}/sortir', [HospitalisationController::class, 'sortir'])
+        ->middleware('can:hospitalisations.update');
+    Route::get('/hospitalisations/{id}', [HospitalisationController::class, 'show'])
+        ->middleware('can:hospitalisations.read');
+    Route::put('/hospitalisations/{id}', [HospitalisationController::class, 'update'])
+        ->middleware('can:hospitalisations.update');
+    Route::delete('/hospitalisations/{id}', [HospitalisationController::class, 'destroy'])
+        ->middleware('can:hospitalisations.delete');
 
-    // Gestion des chambres 
-    Route::get('/chambres', [ChambreController::class, 'index']);
-    Route::post('/chambres', [ChambreController::class, 'store']);
-    Route::get('/chambres/disponibles', [ChambreController::class, 'disponibles']);
-    Route::get('/chambres/{id}', [ChambreController::class, 'show']);
-    Route::put('/chambres/{id}', [ChambreController::class, 'update']);
-    Route::delete('/chambres/{id}', [ChambreController::class, 'destroy']);
+    // Gestion des chambres
+    Route::get('/chambres', [ChambreController::class, 'index'])
+        ->middleware('can:chambres.read');
+    Route::post('/chambres', [ChambreController::class, 'store'])
+        ->middleware('can:chambres.create');
+    Route::get('/chambres/disponibles', [ChambreController::class, 'disponibles'])
+        ->middleware('can:chambres.read');
+    Route::get('/chambres/{id}', [ChambreController::class, 'show'])
+        ->middleware('can:chambres.read');
+    Route::put('/chambres/{id}', [ChambreController::class, 'update'])
+        ->middleware('can:chambres.update');
+    Route::delete('/chambres/{id}', [ChambreController::class, 'destroy'])
+        ->middleware('can:chambres.delete');
 
     // Gestion des demandes d'examen
-    Route::get('/demandes-examen', [DemandeExamenController::class, 'index']);
-    Route::post('/demandes-examen', [DemandeExamenController::class, 'store']);
-    Route::get('/demandes-examen/{id}', [DemandeExamenController::class, 'show']);
-    Route::put('/demandes-examen/{id}', [DemandeExamenController::class, 'update']);
-    Route::delete('/demandes-examen/{id}', [DemandeExamenController::class, 'destroy']);
+    Route::get('/demandes-examen', [DemandeExamenController::class, 'index'])
+        ->middleware('can:examens.read');
+    Route::post('/demandes-examen', [DemandeExamenController::class, 'store'])
+        ->middleware('can:examens.create');
+    Route::get('/demandes-examen/{id}', [DemandeExamenController::class, 'show'])
+        ->middleware('can:examens.read');
+    Route::put('/demandes-examen/{id}', [DemandeExamenController::class, 'update'])
+        ->middleware('can:examens.update');
+    Route::delete('/demandes-examen/{id}', [DemandeExamenController::class, 'destroy'])
+        ->middleware('can:examens.delete');
 
     // Gestion des résultats d'examen
-    Route::get('/resultats', [ResultatController::class, 'index']);
-    Route::post('/resultats', [ResultatController::class, 'store']);
-    Route::get('/resultats/{id}', [ResultatController::class, 'show']);
-    Route::put('/resultats/{id}', [ResultatController::class, 'update']);
-    Route::delete('/resultats/{id}', [ResultatController::class, 'destroy']);
+    Route::get('/resultats', [ResultatController::class, 'index'])
+        ->middleware('can:examens.read');
+    Route::post('/resultats', [ResultatController::class, 'store'])
+        ->middleware('can:examens.update');
+    Route::get('/resultats/{id}', [ResultatController::class, 'show'])
+        ->middleware('can:examens.read');
+    Route::put('/resultats/{id}', [ResultatController::class, 'update'])
+        ->middleware('can:examens.update');
+    Route::delete('/resultats/{id}', [ResultatController::class, 'destroy'])
+        ->middleware('can:examens.delete');
 
 });
 
