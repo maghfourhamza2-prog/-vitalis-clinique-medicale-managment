@@ -77,6 +77,7 @@ enum Role: string
                 Permission::CHAMBRES_UPDATE,
                 Permission::CHAMBRES_DELETE,
                 Permission::AI_USE,
+                Permission::AUDIT_LOGS_READ,
                 ////Gestion des rendez-vous
                 Permission::RENDEZ_VOUS_READ,
                 Permission::RENDEZ_VOUS_CREATE,
@@ -95,7 +96,6 @@ enum Role: string
                 Permission::INDICATEURS_READ,
                 Permission::STATISTIQUES_READ,
 //// Gestion des utilisateurs
-                Permission::ROLES_MANAGE,
                 Permission::USERS_READ,
                 Permission::USERS_CREATE,
                 Permission::USERS_UPDATE,
