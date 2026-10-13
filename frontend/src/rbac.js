@@ -50,6 +50,7 @@ export const PERMISSIONS_PAR_ROLE = {
     'medecins.read', 'medecins.create', 'medecins.update', 'medecins.delete',
     'specialites.read', 'specialites.create', 'specialites.update', 'specialites.delete',
     'indicateurs.read', 'statistiques.read',
+    'users.read', 'users.create', 'users.update', 'users.delete',
     'rendez-vous.read', 'rendez-vous.create', 'rendez-vous.update', 'rendez-vous.delete'
   ],
 
