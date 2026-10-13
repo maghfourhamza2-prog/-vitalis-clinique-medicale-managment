@@ -531,4 +531,84 @@ class AutorisationsRequetesTest extends TestCase
         $this->assertSame(403, $surInexistant->status());
         $this->assertSame($surExistant->json('message'), $surInexistant->json('message'));
     }
+    // ---------------- HTTP : controllers des dossiers medicaux sensibles
+
+    public function test_un_patient_ne_peut_pas_lire_lhospitalisation_dun_autre_par_url(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('PatientAutorise');
+        $autre = $this->creerPatient('PatientInterdit');
+
+        $sesDossiers = $this->creerDossierComplet($patient->id_patient, $idMedecin);
+        $autresDossiers = $this->creerDossierComplet($autre->id_patient, $idMedecin);
+
+        Sanctum::actingAs($this->utilisateur('patient', ['id_patient' => $patient->id_patient]));
+
+        $this->getJson('/api/hospitalisations/'.$sesDossiers['hospitalisation']->id_hospitalisation)
+            ->assertStatus(200);
+
+        $this->getJson('/api/hospitalisations/'.$autresDossiers['hospitalisation']->id_hospitalisation)
+            ->assertStatus(403);
+    }
+
+    public function test_un_patient_ne_peut_pas_lire_la_demande_examen_dun_autre_par_url(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('PatientAutorise');
+        $autre = $this->creerPatient('PatientInterdit');
+
+        $sesDossiers = $this->creerDossierComplet($patient->id_patient, $idMedecin);
+        $autresDossiers = $this->creerDossierComplet($autre->id_patient, $idMedecin);
+
+        Sanctum::actingAs($this->utilisateur('patient', ['id_patient' => $patient->id_patient]));
+
+        $this->getJson('/api/demandes-examen/'.$sesDossiers['demande_examen']->id_demande_examen)
+            ->assertStatus(200);
+
+        $this->getJson('/api/demandes-examen/'.$autresDossiers['demande_examen']->id_demande_examen)
+            ->assertStatus(403);
+    }
+
+    public function test_un_patient_ne_peut_pas_lire_le_resultat_dun_autre_par_url(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('PatientAutorise');
+        $autre = $this->creerPatient('PatientInterdit');
+
+        $sesDossiers = $this->creerDossierComplet($patient->id_patient, $idMedecin);
+        $autresDossiers = $this->creerDossierComplet($autre->id_patient, $idMedecin);
+
+        Sanctum::actingAs($this->utilisateur('patient', ['id_patient' => $patient->id_patient]));
+
+        $this->getJson('/api/resultats/'.$sesDossiers['resultat']->id_resultat)
+            ->assertStatus(200);
+
+        $this->getJson('/api/resultats/'.$autresDossiers['resultat']->id_resultat)
+            ->assertStatus(403);
+    }
+
+    public function test_les_listes_medicales_du_patient_ne_contiennent_que_son_dossier(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('PatientAutorise');
+        $autre = $this->creerPatient('PatientInterdit');
+
+        $sesDossiers = $this->creerDossierComplet($patient->id_patient, $idMedecin);
+        $autresDossiers = $this->creerDossierComplet($autre->id_patient, $idMedecin);
+
+        Sanctum::actingAs($this->utilisateur('patient', ['id_patient' => $patient->id_patient]));
+
+        $hospitalisations = collect($this->getJson('/api/hospitalisations')->assertStatus(200)->json('hospitalisations'));
+        $this->assertTrue($hospitalisations->contains('id_hospitalisation', $sesDossiers['hospitalisation']->id_hospitalisation));
+        $this->assertFalse($hospitalisations->contains('id_hospitalisation', $autresDossiers['hospitalisation']->id_hospitalisation));
+
+        $demandes = collect($this->getJson('/api/demandes-examen')->assertStatus(200)->json('demandes_examens'));
+        $this->assertTrue($demandes->contains('id_demande_examen', $sesDossiers['demande_examen']->id_demande_examen));
+        $this->assertFalse($demandes->contains('id_demande_examen', $autresDossiers['demande_examen']->id_demande_examen));
+
+        $resultats = collect($this->getJson('/api/resultats')->assertStatus(200)->json('resultats'));
+        $this->assertTrue($resultats->contains('id_resultat', $sesDossiers['resultat']->id_resultat));
+        $this->assertFalse($resultats->contains('id_resultat', $autresDossiers['resultat']->id_resultat));
+    }
+
 }
