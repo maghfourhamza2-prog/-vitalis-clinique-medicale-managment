@@ -50,7 +50,7 @@ class ResultatController extends Controller
     public function show(Request $request, $id)
     {
         $resultat = $this->trouverOuRefuser(Resultat::find($id), $request);
-        Gate::authorize('examens.read', $resultat);
+        Gate::authorize('resultats.read', $resultat);
 
         $resultat->load([
             'demandeExamen.consultation.rendezVous.patient',
@@ -65,7 +65,7 @@ class ResultatController extends Controller
         $validated = $request->validate($this->regles(creation: true));
 
         $resultat = new Resultat($validated);
-        Gate::authorize('examens.update', $resultat);
+        Gate::authorize('resultats.create', $resultat);
         $resultat->save();
 
         return response()->json([
@@ -77,12 +77,12 @@ class ResultatController extends Controller
     public function update(Request $request, $id)
     {
         $resultat = $this->trouverOuRefuser(Resultat::find($id), $request);
-        Gate::authorize('examens.update', $resultat);
+        Gate::authorize('resultats.update', $resultat);
 
         $validated = $request->validate($this->regles(creation: false));
 
         $apresModification = (clone $resultat)->fill($validated);
-        Gate::authorize('examens.update', $apresModification);
+        Gate::authorize('resultats.update', $apresModification);
 
         $resultat->update($validated);
 
@@ -95,7 +95,7 @@ class ResultatController extends Controller
     public function destroy(Request $request, $id)
     {
         $resultat = $this->trouverOuRefuser(Resultat::find($id), $request);
-        Gate::authorize('examens.delete', $resultat);
+        Gate::authorize('resultats.delete', $resultat);
 
         $resultat->delete();
 
