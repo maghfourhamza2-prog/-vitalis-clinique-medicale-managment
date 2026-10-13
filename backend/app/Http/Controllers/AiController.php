@@ -102,6 +102,8 @@ public function chat(Request $request): JsonResponse
     }
 
     try {
+        $messageMinimise = $this->minimiserMessageExterne($validated['message']);
+
         $prompt = <<<PROMPT
 Tu es AI SMART, l'assistant virtuel de la clinique Vitalis.
 
@@ -117,7 +119,7 @@ Ton rôle :
   rapidement les services médicaux appropriés.
 
 Question du patient (les identifiants directs ont été masqués avant l'envoi) :
-{$this->minimiserMessageExterne($validated['message'])}
+{$messageMinimise}
 PROMPT;
     $response = Http::timeout(20)
     ->withHeaders([
