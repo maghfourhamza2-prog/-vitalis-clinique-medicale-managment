@@ -47,6 +47,13 @@ enum Permission: string
     case EXAMENS_UPDATE = 'examens.update';
     case EXAMENS_DELETE = 'examens.delete';
 
+    // Les resultats contiennent des donnees cliniques plus sensibles que la
+    // simple coordination d'une demande d'examen.
+    case RESULTATS_READ = 'resultats.read';
+    case RESULTATS_CREATE = 'resultats.create';
+    case RESULTATS_UPDATE = 'resultats.update';
+    case RESULTATS_DELETE = 'resultats.delete';
+
     case HOSPITALISATIONS_READ = 'hospitalisations.read';
     case HOSPITALISATIONS_CREATE = 'hospitalisations.create';
     case HOSPITALISATIONS_UPDATE = 'hospitalisations.update';
