@@ -9,7 +9,6 @@ on:
     branches:
       - develop
 
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -28,14 +27,14 @@ jobs:
     runs-on: ubuntu-latest
 
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'develop'
 
     steps:
       - name: Checkout source code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: develop
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
@@ -52,8 +51,8 @@ jobs:
 
       - name: Define image names
         run: |
-          echo "BACKEND_IMAGE=europe-west1-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/vitalis-backend:${GITHUB_SHA}" >> "$GITHUB_ENV"
-          echo "FRONTEND_IMAGE=europe-west1-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/vitalis-frontend:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "BACKEND_IMAGE=europe-west1-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/vitalis-backend:${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE=europe-west1-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/vitalis-frontend:${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_ENV"
 
       - name: Build backend Docker image
         run: |
