@@ -51,6 +51,28 @@ enum Permission: string
     case HOSPITALISATIONS_CREATE = 'hospitalisations.create';
     case HOSPITALISATIONS_UPDATE = 'hospitalisations.update';
     case HOSPITALISATIONS_DELETE = 'hospitalisations.delete';
+
+    // Facturation et encaissements : donnees financieres sensibles.
+    case FACTURES_READ = 'factures.read';
+    case FACTURES_CREATE = 'factures.create';
+    case FACTURES_UPDATE = 'factures.update';
+    case FACTURES_DELETE = 'factures.delete';
+
+    case PAIEMENTS_READ = 'paiements.read';
+    case PAIEMENTS_CREATE = 'paiements.create';
+    case PAIEMENTS_UPDATE = 'paiements.update';
+    case PAIEMENTS_DELETE = 'paiements.delete';
+
+    // Referentiel des chambres. La consultation est utile au personnel,
+    // tandis que la modification du referentiel reste administrative.
+    case CHAMBRES_READ = 'chambres.read';
+    case CHAMBRES_CREATE = 'chambres.create';
+    case CHAMBRES_UPDATE = 'chambres.update';
+    case CHAMBRES_DELETE = 'chambres.delete';
+
+    // Assistant medical : permission explicite afin qu'un nouveau role
+    // n'obtienne jamais l'acces automatiquement par le seul fait d'etre connecte.
+    case AI_USE = 'ai.use';
  // SCRUM-49 - Gestion des rendez-vous '( bax n3adlo les acces Gestion des rendez-vous  )
     //
     // La suppression reste reservee a l'administrateur et au secretariat :
