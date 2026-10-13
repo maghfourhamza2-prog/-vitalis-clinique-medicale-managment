@@ -44,7 +44,7 @@ Route::middleware('throttle:auth-public')->group(function () {
 
 
 // Routes accessibles uniquement aux utilisateurs authentifiés
-Route::middleware(['auth:sanctum', 'account.active', 'audit.api'])->group(function () {
+Route::middleware(['auth:sanctum', 'audit.api', 'account.active'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/logout-all', [AuthController::class, 'logoutAll']);
