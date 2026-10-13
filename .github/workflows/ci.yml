@@ -1,13 +1,19 @@
 name: VITALIS CI
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - develop
+      - 'feature/security-*'
 
   pull_request:
     branches:
       - develop
+
+permissions:
+  contents: read
 
 jobs:
   backend:
@@ -27,9 +33,6 @@ jobs:
           php-version: '8.4'
           extensions: mbstring, pdo, pdo_pgsql, pdo_sqlite
           coverage: none
-
-      - name: Verifier PHP
-        run: php -v
 
       - name: Installer les dependances Composer
         run: composer install --no-interaction --prefer-dist --no-progress
@@ -63,8 +66,45 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Verifier Node.js
-        run: node --version
-
       - name: Installer les dependances npm
         run: npm ci
+
+      - name: Executer les tests frontend
+        run: npm test
+
+      - name: Construire le frontend
+        run: npm run build
+
+      - name: Auditer les dependances npm
+        run: npm audit --audit-level=high
+
+  secrets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer tout l'historique
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rechercher les secrets exposes
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  filesystem-security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Scanner dependances, secrets et mauvaises configurations
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
