@@ -134,9 +134,11 @@ Audit entries include:
 
 Denied authorization attempts and server-side failures are also captured when they pass authenticated middleware.
 
+Every audit row is signed with an HMAC. The API verifies the signature and exposes an `integrity_valid` flag to administrators while keeping the signature itself hidden. Application-level updates and deletes of audit rows are rejected.
+
 Audit-log reading is restricted to administrators through `audit-logs.read`.
 
-Deleting a user does not delete the audit record; the foreign key becomes null so the historical event remains.
+The actor ID is intentionally retained independently of the users-table foreign key, so deleting a user does not rewrite historical evidence. Production should configure a dedicated `AUDIT_HMAC_KEY`.
 
 ## Financial integrity
 
@@ -239,6 +241,8 @@ Before merge to the team repository:
 - production HTTPS is active;
 - production database/Redis credentials are not development defaults;
 - backup and restore procedure is tested;
+- a dedicated `AUDIT_HMAC_KEY` is configured and protected;
+- audit-log integrity checks return valid signatures;
 - audit-log retention is agreed with the project owner;
 - the final backend is re-audited after teammates merge their changes.
 
