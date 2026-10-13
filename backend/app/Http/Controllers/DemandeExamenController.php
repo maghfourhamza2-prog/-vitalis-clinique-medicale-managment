@@ -38,9 +38,10 @@ class DemandeExamenController extends Controller
             ->with([
                 'consultation.rendezVous.patient',
                 'consultation.rendezVous.medecin',
-                'resultat',
             ])
             ->get();
+
+        $this->masquerDonneesCliniquesPourSecretariat($demandes, $request);
 
         return response()->json(['demandes_examens' => $demandes], 200);
     }
@@ -53,8 +54,9 @@ class DemandeExamenController extends Controller
         $demande->load([
             'consultation.rendezVous.patient',
             'consultation.rendezVous.medecin',
-            'resultat',
         ]);
+
+        $this->masquerDonneesCliniquesPourSecretariat(collect([$demande]), $request);
 
         return response()->json(['demande_examen' => $demande], 200);
     }
@@ -102,6 +104,21 @@ class DemandeExamenController extends Controller
             'message' => 'Demande d\'examen supprimée avec succès',
         ], 200);
     }
+
+    private function masquerDonneesCliniquesPourSecretariat($demandes, Request $request): void
+    {
+        if (Role::tryFrom((string) $request->user()->role) !== Role::SECRETAIRE) {
+            return;
+        }
+
+        foreach ($demandes as $demande) {
+            $demande->makeHidden([
+                'indications_cliniques',
+                'observation',
+            ]);
+        }
+    }
+
 
     /**
      * @return array<string, array<int, string>>
