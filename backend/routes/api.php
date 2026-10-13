@@ -45,6 +45,9 @@ Route::middleware('throttle:auth-public')->group(function () {
 Route::middleware(['auth:sanctum', 'account.active', 'audit.api'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/logout-all', [AuthController::class, 'logoutAll']);
+    Route::get('/sessions', [AuthController::class, 'sessions']);
+    Route::delete('/sessions/{tokenId}', [AuthController::class, 'revokeSession']);
     Route::get('/me', [AuthController::class, 'me']);
 
     Route::get('/audit-logs', [AuditLogController::class, 'index'])
