@@ -188,7 +188,9 @@ The VITALIS CI workflow is configured to run:
 6. frontend production build;
 7. npm security audit;
 8. Gitleaks secret scanning;
-9. Trivy vulnerability, secret, and configuration scanning.
+9. Trivy source-tree vulnerability, secret, and configuration scanning;
+10. production backend/frontend container builds;
+11. Trivy HIGH/CRITICAL scans of both production container images.
 
 A failing test or configured high/critical security finding blocks the CI job.
 
