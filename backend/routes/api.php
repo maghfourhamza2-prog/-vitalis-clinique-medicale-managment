@@ -340,15 +340,15 @@ Route::delete('/consultations/{id}', [ConsultationController::class, 'destroy'])
 
     // Gestion des résultats d'examen
     Route::get('/resultats', [ResultatController::class, 'index'])
-        ->middleware('can:examens.read');
+        ->middleware('can:resultats.read');
     Route::post('/resultats', [ResultatController::class, 'store'])
-        ->middleware('can:examens.update');
+        ->middleware('can:resultats.create');
     Route::get('/resultats/{id}', [ResultatController::class, 'show'])
-        ->middleware('can:examens.read');
+        ->middleware('can:resultats.read');
     Route::put('/resultats/{id}', [ResultatController::class, 'update'])
-        ->middleware('can:examens.update');
+        ->middleware('can:resultats.update');
     Route::delete('/resultats/{id}', [ResultatController::class, 'destroy'])
-        ->middleware('can:examens.delete');
+        ->middleware('can:resultats.delete');
 
 });
 
