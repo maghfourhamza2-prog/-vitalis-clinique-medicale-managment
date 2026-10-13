@@ -41,6 +41,8 @@ class HospitalisationController extends Controller
             ->with(['patient', 'chambre', 'medecin'])
             ->get();
 
+        $this->masquerDonneesCliniquesPourSecretariat($hospitalisations, $request);
+
         return response()->json(['hospitalisations' => $hospitalisations], 200);
     }
 
@@ -50,6 +52,7 @@ class HospitalisationController extends Controller
         Gate::authorize('hospitalisations.read', $hospitalisation);
 
         $hospitalisation->load(['patient', 'chambre', 'medecin']);
+        $this->masquerDonneesCliniquesPourSecretariat(collect([$hospitalisation]), $request);
 
         return response()->json(['hospitalisation' => $hospitalisation], 200);
     }
@@ -187,6 +190,22 @@ class HospitalisationController extends Controller
             'message' => 'Hospitalisation supprimée avec succès',
         ], 200);
     }
+
+    private function masquerDonneesCliniquesPourSecretariat($hospitalisations, Request $request): void
+    {
+        if (Role::tryFrom((string) $request->user()->role) !== Role::SECRETAIRE) {
+            return;
+        }
+
+        foreach ($hospitalisations as $hospitalisation) {
+            $hospitalisation->makeHidden([
+                'motif_hospitalisation',
+                'diagnostic_entree',
+                'observations',
+            ]);
+        }
+    }
+
 
     /**
      * @return array<string, array<int, string>>
