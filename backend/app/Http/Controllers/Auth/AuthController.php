@@ -54,6 +54,12 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        if (! (bool) config('security.allow_public_registration', false)) {
+            return response()->json([
+                'message' => 'L\'inscription publique est désactivée. Contactez l\'administrateur.',
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'email' => [...$this->reglesEmail(), 'unique:users,email'],
