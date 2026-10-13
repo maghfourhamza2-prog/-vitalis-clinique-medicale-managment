@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
+            'audit.api' => \App\Http\Middleware\AuditApiActivity::class,
         ]);
 
         // SCRUM-526 - Limitation de debit sur TOUTE l'API.
