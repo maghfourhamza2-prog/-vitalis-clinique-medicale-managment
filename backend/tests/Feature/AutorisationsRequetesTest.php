@@ -183,7 +183,7 @@ class AutorisationsRequetesTest extends TestCase
             'consultation' => ['consultation', 'consultations.read'],
             'ordonnance' => ['ordonnance', 'ordonnances.read'],
             'demande d examen' => ['demande_examen', 'examens.read'],
-            'resultat d examen' => ['resultat', 'examens.read'],
+            'resultat d examen' => ['resultat', 'resultats.read'],
             'hospitalisation' => ['hospitalisation', 'hospitalisations.read'],
         ];
     }
