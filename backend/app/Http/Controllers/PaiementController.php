@@ -6,310 +6,198 @@ use App\Enums\StatutFacture;
 use App\Models\Facture;
 use App\Models\Paiement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class PaiementController extends Controller
 {
-    // Lister tous les paiements
     public function index()
     {
-        $paiements = Paiement::all();
-
         return response()->json([
-            'paiements' => $paiements
+            'paiements' => Paiement::all(),
         ], 200);
     }
 
-    // Afficher un paiement
     public function show($id)
     {
-        $paiement = Paiement::findOrFail($id);
-
         return response()->json([
-            'paiement' => $paiement
+            'paiement' => Paiement::findOrFail($id),
         ], 200);
     }
 
-    // Ajouter un paiement
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'date_paiement' => [
-                'required',
-                'date'
-            ],
+        $validated = $request->validate($this->regles(creation: true));
 
-            'heure_paiement' => [
-                'required',
-                'date_format:H:i'
-            ],
+        $paiement = DB::transaction(function () use ($validated) {
+            // Le verrou empeche deux caisses de valider simultanement des
+            // paiements qui, pris separement, paraissent tous les deux valides
+            // mais depasseraient ensemble le solde de la facture.
+            $facture = Facture::whereKey($validated['id_facture'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-            'montant_paye' => [
-                'required',
-                'numeric',
-                'min:0.01'
-            ],
+            $this->verifierPaiement(
+                $facture,
+                (float) $validated['montant_paye'],
+                (string) $validated['statut']
+            );
 
-            'mode_paiement' => [
-                'required',
-                Rule::in([
-                    'especes',
-                    'carte_bancaire',
-                    'virement'
-                ])
-            ],
+            $paiement = Paiement::create($validated);
+            $this->synchroniserStatutFacture($facture);
 
-            'statut' => [
-                'required',
-                Rule::in([
-                    'valide',
-                    'annule'
-                ])
-            ],
-
-            'observations' => [
-                'nullable',
-                'string'
-            ],
-
-            'id_facture' => [
-                'required',
-                'integer',
-                'exists:factures,id_facture'
-            ],
-        ]);
-
-        // Récupérer la facture concernée
-        $facture = Facture::findOrFail($validated['id_facture']);
-
-        // Interdire un paiement sur une facture annulée
-        if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
-            throw ValidationException::withMessages([
-                'id_facture' => 'Impossible d\'ajouter un paiement à une facture annulée.'
-            ]);
-        }
-
-        // Calculer le total déjà payé
-        $totalDejaPaye = (float) $facture->paiements()
-            ->where('statut', 'valide')
-            ->sum('montant_paye');
-
-        // Calculer le reste à payer
-        $resteAPayer =
-            (float) $facture->montant_net - $totalDejaPaye;
-
-        // Empêcher un paiement supérieur au reste à payer
-        if (
-            $validated['statut'] === 'valide'
-            && (float) $validated['montant_paye'] > $resteAPayer
-        ) {
-            throw ValidationException::withMessages([
-                'montant_paye' => 'Le montant du paiement dépasse le reste à payer.'
-            ]);
-        }
-
-        // Enregistrer le paiement
-        $paiement = Paiement::create($validated);
-
-        // Mettre à jour automatiquement le statut de la facture
-        $this->synchroniserStatutFacture($facture);
+            return $paiement;
+        });
 
         return response()->json([
             'message' => 'Paiement ajouté avec succès',
-            'paiement' => $paiement
+            'paiement' => $paiement,
         ], 201);
     }
 
-    // Modifier un paiement
     public function update(Request $request, $id)
     {
-        $paiement = Paiement::findOrFail($id);
+        $validated = $request->validate($this->regles(creation: false));
 
-        // Conserver l'ancienne facture avant la modification
-        $ancienneFacture = Facture::findOrFail(
-            $paiement->id_facture
-        );
+        $paiement = DB::transaction(function () use ($validated, $id) {
+            $paiement = Paiement::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $validated = $request->validate([
-            'date_paiement' => [
-                'sometimes',
-                'required',
-                'date'
-            ],
+            $ancienneFactureId = (int) $paiement->id_facture;
+            $nouvelleFactureId = (int) ($validated['id_facture'] ?? $ancienneFactureId);
 
-            'heure_paiement' => [
-                'sometimes',
-                'required',
-                'date_format:H:i'
-            ],
+            // Verrouillage dans un ordre stable pour limiter le risque de
+            // deadlock quand un paiement change de facture.
+            $ids = array_values(array_unique([$ancienneFactureId, $nouvelleFactureId]));
+            sort($ids);
 
-            'montant_paye' => [
-                'sometimes',
-                'required',
-                'numeric',
-                'min:0.01'
-            ],
+            $factures = Facture::whereIn('id_facture', $ids)
+                ->orderBy('id_facture')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id_facture');
 
-            'mode_paiement' => [
-                'sometimes',
-                'required',
-                Rule::in([
-                    'especes',
-                    'carte_bancaire',
-                    'virement'
-                ])
-            ],
+            $facture = $factures->get($nouvelleFactureId);
+            $ancienneFacture = $factures->get($ancienneFactureId);
 
-            'statut' => [
-                'sometimes',
-                'required',
-                Rule::in([
-                    'valide',
-                    'annule'
-                ])
-            ],
+            if ($facture === null || $ancienneFacture === null) {
+                abort(404);
+            }
 
-            'observations' => [
-                'sometimes',
-                'nullable',
-                'string'
-            ],
+            $montantPaye = (float) ($validated['montant_paye'] ?? $paiement->montant_paye);
+            $statut = (string) ($validated['statut'] ?? $paiement->statut);
 
-            'id_facture' => [
-                'sometimes',
-                'required',
-                'integer',
-                'exists:factures,id_facture'
-            ],
-        ]);
-
-        // Récupérer les nouvelles valeurs
-        // ou conserver les valeurs actuelles
-        $idFacture = $validated['id_facture']
-            ?? $paiement->id_facture;
-
-        $montantPaye = (float) (
-            $validated['montant_paye']
-            ?? $paiement->montant_paye
-        );
-
-        $statut = $validated['statut']
-            ?? $paiement->statut;
-
-        // Récupérer la facture concernée
-        $facture = Facture::findOrFail($idFacture);
-
-        // Interdire la modification d'un paiement
-        // associé à une facture annulée
-        if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
-            throw ValidationException::withMessages([
-                'id_facture' => 'Impossible de modifier un paiement associé à une facture annulée.'
-            ]);
-        }
-
-        // Calculer le total des autres paiements validés
-        // sans compter le paiement actuellement modifié
-        $totalAutresPaiements = (float) $facture->paiements()
-            ->where('statut', 'valide')
-            ->where(
-                'id_paiement',
-                '!=',
-                $paiement->id_paiement
-            )
-            ->sum('montant_paye');
-
-        // Calculer le reste à payer
-        $resteAPayer =
-            (float) $facture->montant_net
-            - $totalAutresPaiements;
-
-        // Empêcher le paiement de dépasser le reste à payer
-        if (
-            $statut === 'valide'
-            && $montantPaye > $resteAPayer
-        ) {
-            throw ValidationException::withMessages([
-                'montant_paye' => 'Le montant du paiement dépasse le reste à payer.'
-            ]);
-        }
-
-        // Modifier le paiement
-        $paiement->update($validated);
-
-        // Mettre à jour la facture concernée
-        $this->synchroniserStatutFacture($facture);
-
-        // Si le paiement a changé de facture,
-        // mettre également à jour l'ancienne facture
-        if (
-            $ancienneFacture->id_facture
-            !== $facture->id_facture
-        ) {
-            $this->synchroniserStatutFacture(
-                $ancienneFacture
+            $this->verifierPaiement(
+                $facture,
+                $montantPaye,
+                $statut,
+                (int) $paiement->id_paiement
             );
-        }
+
+            $paiement->update($validated);
+
+            $this->synchroniserStatutFacture($facture);
+
+            if ($ancienneFactureId !== $nouvelleFactureId) {
+                $this->synchroniserStatutFacture($ancienneFacture);
+            }
+
+            return $paiement;
+        });
 
         return response()->json([
             'message' => 'Paiement modifié avec succès',
-            'paiement' => $paiement
+            'paiement' => $paiement,
         ], 200);
     }
 
-    // Supprimer un paiement
     public function destroy($id)
     {
-        $paiement = Paiement::findOrFail($id);
+        DB::transaction(function () use ($id) {
+            $paiement = Paiement::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        // Récupérer la facture avant de supprimer le paiement
-        $facture = Facture::findOrFail(
-            $paiement->id_facture
-        );
+            $facture = Facture::whereKey($paiement->id_facture)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $paiement->delete();
-
-        // Mettre à jour le statut de la facture
-        // après la suppression
-        $this->synchroniserStatutFacture($facture);
+            $paiement->delete();
+            $this->synchroniserStatutFacture($facture);
+        });
 
         return response()->json([
-            'message' => 'Paiement supprimé avec succès'
+            'message' => 'Paiement supprimé avec succès',
         ], 200);
     }
 
-    // Mettre à jour automatiquement le statut de la facture
-    // selon le total des paiements validés
-    private function synchroniserStatutFacture(
-        Facture $facture
+    /**
+     * @return array<string, array<int, mixed>>
+     */
+    private function regles(bool $creation): array
+    {
+        $requis = $creation ? 'required' : 'sometimes';
+
+        return [
+            'date_paiement' => [$requis, 'date'],
+            'heure_paiement' => [$requis, 'date_format:H:i'],
+            'montant_paye' => [$requis, 'numeric', 'min:0.01'],
+            'mode_paiement' => [$requis, Rule::in(['especes', 'carte_bancaire', 'virement'])],
+            'statut' => [$requis, Rule::in(['valide', 'annule'])],
+            'observations' => ['nullable', 'string'],
+            'id_facture' => [$requis, 'integer', 'exists:factures,id_facture'],
+        ];
+    }
+
+    private function verifierPaiement(
+        Facture $facture,
+        float $montantPaye,
+        string $statut,
+        ?int $paiementExclu = null
     ): void {
-        // Une facture annulée doit conserver son statut
-        if (
-            $facture->statut_paiement
-            === StatutFacture::ANNULEE->value
-        ) {
+        if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
+            throw ValidationException::withMessages([
+                'id_facture' => 'Impossible de modifier les paiements d\'une facture annulée.',
+            ]);
+        }
+
+        $totalDejaPaye = (float) $facture->paiements()
+            ->where('statut', 'valide')
+            ->when(
+                $paiementExclu !== null,
+                fn ($query) => $query->where('id_paiement', '!=', $paiementExclu)
+            )
+            ->sum('montant_paye');
+
+        $resteAPayer = max(0, (float) $facture->montant_net - $totalDejaPaye);
+
+        if ($statut === 'valide' && $montantPaye > $resteAPayer) {
+            throw ValidationException::withMessages([
+                'montant_paye' => 'Le montant du paiement dépasse le reste à payer.',
+            ]);
+        }
+    }
+
+    private function synchroniserStatutFacture(Facture $facture): void
+    {
+        if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
             return;
         }
 
-        // Calculer le total des paiements validés
         $totalPaye = (float) $facture->paiements()
             ->where('statut', 'valide')
             ->sum('montant_paye');
 
         $montantNet = (float) $facture->montant_net;
 
-        // Déterminer automatiquement le statut
-        if ($totalPaye <= 0) {
-            $statut = StatutFacture::IMPAYEE->value;
-        } elseif ($totalPaye < $montantNet) {
-            $statut = StatutFacture::PARTIELLE->value;
-        } else {
-            $statut = StatutFacture::PAYEE->value;
-        }
+        $statut = match (true) {
+            $totalPaye <= 0 => StatutFacture::IMPAYEE->value,
+            $totalPaye < $montantNet => StatutFacture::PARTIELLE->value,
+            default => StatutFacture::PAYEE->value,
+        };
 
-        // Mettre à jour le statut de la facture
-        $facture->update([
-            'statut_paiement' => $statut
-        ]);
+        $facture->update(['statut_paiement' => $statut]);
     }
 }
