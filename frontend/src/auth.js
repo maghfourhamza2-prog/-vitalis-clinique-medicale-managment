@@ -1,17 +1,14 @@
 // SCRUM-13 - Etat d'authentification centralise.
 // SCRUM-15 - Gestion complete de la session utilisateur.
 //
-// La session est ecrite soit dans localStorage ("Se souvenir de moi" coche,
-// elle survit alors a la fermeture du navigateur), soit dans sessionStorage
-// (elle disparait a la fermeture de l'onglet). Toute lecture et toute ecriture
-// passent par ce module : le routeur, l'intercepteur axios et les vues voient
-// ainsi exactement le meme etat, et il n'existe qu'un seul endroit ou la
-// session est effacee.
+// Le jeton Bearer n'est jamais persiste dans localStorage : un stockage
+// persistant augmente la fenetre d'exploitation en cas de XSS ou de poste
+// partage. La session disparait donc a la fermeture de l'onglet/navigateur.
 
 const CLE_TOKEN = 'token'
 const CLE_USER = 'user'
 
-const stockages = () => [localStorage, sessionStorage]
+const stockages = () => [sessionStorage]
 
 /**
  * Retourne le token de l'utilisateur connecte, ou null.
@@ -59,31 +56,31 @@ export function isAuthenticated() {
 /**
  * Enregistre la session apres une connexion reussie.
  *
- * @param {{ token: string, user: object, remember?: boolean }} session
+ * @param {{ token: string, user: object }} session
  */
-export function saveSession({ token, user, remember = false }) {
-  // On repart d'une session propre : sans cela, un ancien token pourrait
-  // survivre dans l'autre stockage et etre relu en priorite.
+export function saveSession({ token, user }) {
   clearSession()
 
-  const stockage = remember ? localStorage : sessionStorage
-
-  stockage.setItem(CLE_TOKEN, token)
-  stockage.setItem(CLE_USER, JSON.stringify(user))
+  sessionStorage.setItem(CLE_TOKEN, token)
+  sessionStorage.setItem(CLE_USER, JSON.stringify(user))
 }
 
 /**
- * Efface la session dans les deux stockages.
+ * Efface la session de l'onglet et nettoie aussi les anciennes versions
+ * eventuellement restees dans localStorage.
  *
  * Utilise a la deconnexion et lorsque l'API repond 401 (session expiree ou
  * token revoque). Nettoyer les deux evite de laisser des donnees utilisateur
  * obsoletes derriere soi.
  */
 export function clearSession() {
-  for (const stockage of stockages()) {
-    stockage.removeItem(CLE_TOKEN)
-    stockage.removeItem(CLE_USER)
-  }
+  sessionStorage.removeItem(CLE_TOKEN)
+  sessionStorage.removeItem(CLE_USER)
+
+  // Migration de securite : purge les jetons persistants crees par les
+  // versions precedentes de VITALIS.
+  localStorage.removeItem(CLE_TOKEN)
+  localStorage.removeItem(CLE_USER)
 }
 
 /**
