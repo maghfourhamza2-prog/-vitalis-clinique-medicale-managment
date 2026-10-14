@@ -112,7 +112,7 @@ class SecurityHardeningTest extends TestCase
             'id_medecin' => $idMedecin,
         ]);
 
-        return compact('patient', 'idMedecin', 'rendezVous', 'resultat', 'demande', 'hospitalisation');
+        return compact('patient', 'idMedecin', 'rendezVous', 'consultation', 'resultat', 'demande', 'hospitalisation');
     }
 
     public function test_inactive_account_with_existing_token_is_revoked(): void
@@ -545,6 +545,72 @@ class SecurityHardeningTest extends TestCase
             ->assertStatus(403);
 
         $this->assertSame('Autre', $otherPatient->fresh()->nom);
+    }
+
+
+    public function test_invoice_status_cannot_be_spoofed_by_client(): void
+    {
+        $dossier = $this->creerDossierClinique();
+
+        $secretary = User::factory()->create([
+            'role' => 'secretaire',
+            'statut' => 'Actif',
+        ]);
+
+        $response = $this->actingAs($secretary, 'sanctum')
+            ->postJson('/api/factures', [
+                'numero_facture' => 'SEC-'.random_int(100000, 999999),
+                'date_facture' => now()->toDateString(),
+                'remise' => 0,
+                'statut_paiement' => 'payee',
+                'id_consultation' => $dossier['consultation']->id_consultation,
+                'id_hospitalisation' => null,
+            ])
+            ->assertStatus(201);
+
+        $this->assertSame('impayee', $response->json('facture.statut_paiement'));
+    }
+
+    public function test_paid_invoice_cannot_be_cancelled_or_deleted_directly(): void
+    {
+        $dossier = $this->creerDossierClinique();
+
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $invoice = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/factures', [
+                'numero_facture' => 'SEC-'.random_int(100000, 999999),
+                'date_facture' => now()->toDateString(),
+                'remise' => 0,
+                'id_consultation' => $dossier['consultation']->id_consultation,
+                'id_hospitalisation' => null,
+            ])
+            ->assertStatus(201)
+            ->json('facture');
+
+        $amount = (float) $invoice['montant_net'];
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/paiements', [
+                'date_paiement' => now()->toDateString(),
+                'heure_paiement' => '12:00',
+                'montant_paye' => $amount,
+                'mode_paiement' => 'carte_bancaire',
+                'statut' => 'valide',
+                'id_facture' => $invoice['id_facture'],
+            ])
+            ->assertStatus(201);
+
+        $this->actingAs($admin, 'sanctum')
+            ->patchJson('/api/factures/'.$invoice['id_facture'].'/annuler')
+            ->assertStatus(409);
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson('/api/factures/'.$invoice['id_facture'])
+            ->assertStatus(409);
     }
 
 }
