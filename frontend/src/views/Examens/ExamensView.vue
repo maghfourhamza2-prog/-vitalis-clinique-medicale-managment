@@ -44,7 +44,7 @@
 
     <div class="quick-actions">
 
-      <button class="quick-card">
+      <button v-if="peutAction('examens.creer')" class="quick-card">
 
         <div class="quick-icon blue">
           <i class="fi fi-rr-document"></i>
