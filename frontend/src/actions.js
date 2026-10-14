@@ -46,7 +46,14 @@ export const PERMISSION_PAR_ACTION = {
   'consultations.creer': 'consultations.create',
   'consultations.modifier': 'consultations.update',
   'consultations.supprimer': 'consultations.delete',
-  
+
+  // Facturation et paiements
+  'factures.creer': 'factures.create',
+  'factures.modifier': 'factures.update',
+  'factures.annuler': 'factures.update',
+  'factures.supprimer': 'factures.delete',
+  'paiements.creer': 'paiements.create',
+
   // Comptes utilisateurs : le backend ne connait qu'une permission pour tout
   // ce module, 'roles.manage', accordee au seul administrateur.
   'utilisateurs.ajouter': 'roles.manage',
