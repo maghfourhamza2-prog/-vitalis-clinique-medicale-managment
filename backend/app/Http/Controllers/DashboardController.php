@@ -15,17 +15,22 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $data = match ($user->role) {
-            Role::ADMINISTRATEUR->value => $this->adminDashboard(),
-            Role::MEDECIN->value        => $this->medecinDashboard($user),
-            Role::SECRETAIRE->value     => $this->secretaireDashboard(),
-            Role::INFIRMIER->value      => $this->infirmierDashboard(),
-            Role::PATIENT->value        => $this->patientDashboard($user),
-            default => [],
+        $role = Role::tryFrom((string) $user->role);
+
+        if ($role === null) {
+            abort(403, 'Accès interdit');
+        }
+
+        $data = match ($role) {
+            Role::ADMINISTRATEUR => $this->adminDashboard(),
+            Role::MEDECIN        => $this->medecinDashboard($user),
+            Role::SECRETAIRE     => $this->secretaireDashboard(),
+            Role::INFIRMIER      => $this->infirmierDashboard(),
+            Role::PATIENT        => $this->patientDashboard($user),
         };
 
         return response()->json([
-            'role' => $user->role,
+            'role' => $role->value,
             'data' => $data,
         ]);
     }
