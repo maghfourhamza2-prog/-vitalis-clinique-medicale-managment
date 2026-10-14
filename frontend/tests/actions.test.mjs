@@ -87,12 +87,17 @@ verifier('SCRUM-605 patient : seule la prise de rendez-vous lui est proposee', (
   // SCRUM-49 accorde RENDEZ_VOUS_CREATE au patient : la prise de rendez-vous
   // en ligne est la seule action qu'il puisse declencher. Le backend la
   // restreint a son propre dossier (RendezVousAccesTest).
-  const seuleActionAutorisee = 'tableauBord.nouveauRendezVous'
+  const actionsAutorisees = new Set([
+    'tableauBord.nouveauRendezVous',
+    'rendezVous.creer'
+  ])
 
-  assert.equal(peutAction(seuleActionAutorisee), true)
+  for (const action of actionsAutorisees) {
+    assert.equal(peutAction(action), true, `le patient devrait voir ${action}`)
+  }
 
   for (const action of Object.keys(PERMISSION_PAR_ACTION)) {
-    if (action === seuleActionAutorisee) continue
+    if (actionsAutorisees.has(action)) continue
 
     assert.equal(peutAction(action), false, `le patient ne devrait pas voir ${action}`)
   }
