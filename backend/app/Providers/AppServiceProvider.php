@@ -60,10 +60,16 @@ class AppServiceProvider extends ServiceProvider
             $email = Str::lower((string) $request->input('email'));
 
             return [
-                // Cible un compte precis : ralentit la recherche du mot de passe.
-                Limit::perMinute(5)->by($email.'|'.$request->ip()),
-                // Cible l'adresse IP : ralentit le balayage de plusieurs comptes.
-                Limit::perMinute(20)->by($request->ip()),
+                // Limite par compte, independamment de l'adresse IP : une
+                // attaque distribuee ne peut pas contourner la limite en
+                // changeant de relais. Le hash evite de mettre l'email brut
+                // dans la cle de cache.
+                Limit::perMinute(5)->by(
+                    'login-email:'.hash('sha256', $email)
+                ),
+                // Limite par adresse IP : ralentit le balayage de nombreux
+                // comptes depuis une meme source.
+                Limit::perMinute(20)->by('login-ip:'.$request->ip()),
             ];
         });
 
