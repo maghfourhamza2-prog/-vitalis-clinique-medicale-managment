@@ -158,4 +158,26 @@ class LoginSecurityTest extends TestCase
         $this->assertArrayNotHasKey('token', $response->json());
         $this->assertSame(0, User::where('email', 'existe@example.com')->first()->tokens()->count());
     }
+
+    public function test_same_account_is_rate_limited_across_multiple_ips(): void
+    {
+        User::factory()->create(['email' => 'distribue@example.com']);
+
+        for ($i = 1; $i <= 5; $i++) {
+            $this->withServerVariables([
+                'REMOTE_ADDR' => "10.20.30.{$i}",
+            ])->postJson('/api/login', [
+                'email' => 'distribue@example.com',
+                'password' => 'mauvais-mot-de-passe',
+            ])->assertStatus(401);
+        }
+
+        $this->withServerVariables([
+            'REMOTE_ADDR' => '10.20.30.99',
+        ])->postJson('/api/login', [
+            'email' => 'distribue@example.com',
+            'password' => 'mauvais-mot-de-passe',
+        ])->assertStatus(429);
+    }
+
 }
