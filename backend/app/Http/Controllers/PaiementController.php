@@ -146,7 +146,7 @@ class PaiementController extends Controller
             'montant_paye' => [$requis, 'numeric', 'min:0.01'],
             'mode_paiement' => [$requis, Rule::in(['especes', 'carte_bancaire', 'virement'])],
             'statut' => [$requis, Rule::in(['valide', 'annule'])],
-            'observations' => ['nullable', 'string'],
+            'observations' => ['nullable', 'string', 'max:5000'],
             'id_facture' => [$requis, 'integer', 'exists:factures,id_facture'],
         ];
     }
