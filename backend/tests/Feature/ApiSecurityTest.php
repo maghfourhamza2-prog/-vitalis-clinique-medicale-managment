@@ -350,4 +350,35 @@ class ApiSecurityTest extends TestCase
         // jeton soit reellement reexamine.
         $this->requeteAvecJeton($jeton)->assertStatus(401);
     }
+
+    public function test_lannuaire_medecin_minimise_les_champs_rh_pour_le_personnel(): void
+    {
+        $idMedecin = $this->creerMedecin('Confidentiel');
+
+        Sanctum::actingAs($this->utilisateur('secretaire'));
+
+        $reponse = $this->getJson('/api/medecins/'.$idMedecin)
+            ->assertStatus(200);
+
+        $reponse->assertJsonPath('medecin.nom', 'Confidentiel');
+
+        foreach (['matricule', 'date_embauche', 'tarif_consultation'] as $champ) {
+            $reponse->assertJsonMissingPath('medecin.'.$champ);
+        }
+    }
+
+    public function test_ladministrateur_garde_les_champs_de_gestion_du_medecin(): void
+    {
+        $idMedecin = $this->creerMedecin('Administratif');
+
+        Sanctum::actingAs($this->utilisateur('administrateur'));
+
+        $reponse = $this->getJson('/api/medecins/'.$idMedecin)
+            ->assertStatus(200);
+
+        $this->assertNotNull($reponse->json('medecin.matricule'));
+        $this->assertNotNull($reponse->json('medecin.date_embauche'));
+        $this->assertNotNull($reponse->json('medecin.tarif_consultation'));
+    }
+
 }
