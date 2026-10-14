@@ -32,7 +32,7 @@ export const ENTREES_NAVIGATION = [
   { libelle: 'Consultations', to: '/consultations', icone: 'fi-rr-stethoscope', permission: 'consultations.read' },
   { libelle: 'Examens', to: '/examens', icone: 'fi-rr-document', permission: 'examens.read' },
   { libelle: 'Hospitalisations', to: '/hospitalisations', icone: 'fi-rr-bed', permission: 'hospitalisations.read' },
-  { libelle: 'Facturation', to: '/facturation', icone: 'fi-rr-receipt', permission: 'statistiques.read' },
+  { libelle: 'Facturation', to: '/facturation', icone: 'fi-rr-receipt', permission: 'factures.read' },
   { libelle: 'Utilisateurs', to: '/utilisateurs', icone: 'fi-rr-user-gear', permission: 'roles.manage' },
   { libelle: 'Paramètres', to: '/parametres', icone: 'fi-rr-settings', permission: 'roles.manage' }
 ]
