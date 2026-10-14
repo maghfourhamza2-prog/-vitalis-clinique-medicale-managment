@@ -24,9 +24,9 @@ class DatabaseSeeder extends Seeder
         // Ne jamais versionner de mot de passe de demonstration connu.
         // Les valeurs peuvent etre definies localement par environnement.
         // A defaut, des secrets aleatoires sont generes a chaque seed.
-        $adminPassword = env('VITALIS_SEED_ADMIN_PASSWORD') ?: Str::random(32);
-        $medecinPassword = env('VITALIS_SEED_MEDECIN_PASSWORD') ?: Str::random(32);
-        $patientPassword = env('VITALIS_SEED_PATIENT_PASSWORD') ?: Str::random(32);
+        $adminPassword = config('security.seed_passwords.admin') ?: Str::random(32);
+        $medecinPassword = config('security.seed_passwords.medecin') ?: Str::random(32);
+        $patientPassword = config('security.seed_passwords.patient') ?: Str::random(32);
 
         if ($this->command && app()->environment(['local', 'testing'])) {
             $this->command->warn('Mots de passe de seed generes pour cet environnement uniquement.');
