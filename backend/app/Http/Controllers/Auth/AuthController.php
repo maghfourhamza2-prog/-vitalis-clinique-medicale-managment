@@ -86,6 +86,7 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => Role::PATIENT->value,
+            'statut' => 'Actif',
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
