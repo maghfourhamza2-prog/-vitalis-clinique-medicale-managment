@@ -362,7 +362,7 @@ Route::delete('/consultations/{id}', [ConsultationController::class, 'destroy'])
 // non authentifie des que la base tombait. Le detail part maintenant dans les
 // logs applicatifs, ou seule l'equipe y a acces.
 Route::get('/health', function () {
-    $checks = [];
+    $healthy = true;
 
     foreach ([
         'database' => fn () => DB::connection()->getPdo(),
@@ -370,25 +370,20 @@ Route::get('/health', function () {
     ] as $service => $sonde) {
         try {
             $sonde();
-            $checks[$service] = 'ok';
         } catch (\Throwable $e) {
+            $healthy = false;
+
             Log::error("Health check: service {$service} indisponible", [
                 'service' => $service,
                 'exception' => $e->getMessage(),
             ]);
-
-            $checks[$service] = 'failed';
         }
     }
 
-    $healthy = ! in_array(false, array_map(
-        fn (string $status) => $status === 'ok',
-        $checks,
-    ), true);
-
+    // La sonde publique ne revele pas quels composants internes utilisent
+    // PostgreSQL/Redis ni lequel est en panne. Les details restent dans les logs.
     return response()->json([
         'status' => $healthy ? 'ok' : 'degraded',
-        'services' => $checks,
         'timestamp' => now()->toIso8601String(),
     ], $healthy ? 200 : 503);
-});
+})->middleware('throttle:auth-public');
