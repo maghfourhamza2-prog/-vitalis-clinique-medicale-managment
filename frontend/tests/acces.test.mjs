@@ -59,7 +59,7 @@ const connecterAvecRole = (role) => {
 
 // Ecrans prives et permission qui les gouverne.
 const ECRANS = [
-  { chemin: '/utilisateurs', permission: 'roles.manage' },
+  { chemin: '/utilisateurs', permission: 'users.read' },
   { chemin: '/patients', permission: 'patients.read' },
   { chemin: '/rendez-vous', permission: 'rendez-vous.read' },
   { chemin: '/consultations', permission: 'consultations.read' },
