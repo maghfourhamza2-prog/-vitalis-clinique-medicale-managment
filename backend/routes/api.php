@@ -38,9 +38,11 @@ Route::post('/login/mfa', [AuthController::class, 'verifyMfa'])
 
 Route::middleware('throttle:auth-public')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 });
+
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])
+    ->middleware('throttle:password-reset-request');
 
 
 // Routes accessibles uniquement aux utilisateurs authentifiés
