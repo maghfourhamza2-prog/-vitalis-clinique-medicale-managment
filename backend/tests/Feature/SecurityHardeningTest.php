@@ -748,4 +748,63 @@ class SecurityHardeningTest extends TestCase
         $this->assertStringNotContainsString('redis', $response->getContent());
     }
 
+
+    public function test_audit_retention_prunes_only_expired_rows(): void
+    {
+        config([
+            'security.audit.hmac_key' => 'test-audit-key',
+            'security.audit.retention_days' => 30,
+        ]);
+
+        $old = AuditLog::create([
+            'user_id' => null,
+            'method' => 'GET',
+            'path' => '/api/old',
+            'status_code' => 200,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'test',
+            'duration_ms' => 1,
+            'created_at' => now()->subDays(31),
+        ]);
+
+        $recent = AuditLog::create([
+            'user_id' => null,
+            'method' => 'GET',
+            'path' => '/api/recent',
+            'status_code' => 200,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'test',
+            'duration_ms' => 1,
+            'created_at' => now()->subDays(29),
+        ]);
+
+        $this->artisan('audit:prune')->assertSuccessful();
+
+        $this->assertDatabaseMissing('audit_logs', ['id' => $old->id]);
+        $this->assertDatabaseHas('audit_logs', ['id' => $recent->id]);
+    }
+
+    public function test_audit_retention_is_disabled_when_not_configured(): void
+    {
+        config([
+            'security.audit.hmac_key' => 'test-audit-key',
+            'security.audit.retention_days' => 0,
+        ]);
+
+        $log = AuditLog::create([
+            'user_id' => null,
+            'method' => 'GET',
+            'path' => '/api/keep',
+            'status_code' => 200,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'test',
+            'duration_ms' => 1,
+            'created_at' => now()->subYears(10),
+        ]);
+
+        $this->artisan('audit:prune')->assertSuccessful();
+
+        $this->assertDatabaseHas('audit_logs', ['id' => $log->id]);
+    }
+
 }
