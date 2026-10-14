@@ -1,0 +1,45 @@
+name: Security Composer refresh
+
+on:
+  push:
+    branches:
+      - feature/security-hardening-final
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: feature/security-hardening-final
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Update vulnerable Composer packages
+        working-directory: backend
+        run: |
+          composer update laravel/framework league/flysystem \
+            --with-all-dependencies \
+            --minimal-changes \
+            --no-interaction \
+            --no-scripts
+          composer audit --locked --no-interaction
+
+      - name: Commit refreshed lockfile and remove this one-off workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/composer.lock
+          git rm .github/workflows/security-composer-refresh.yml
+          git commit -m "security: update vulnerable Composer packages"
+          git push origin HEAD:feature/security-hardening-final
