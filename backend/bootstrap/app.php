@@ -6,6 +6,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -88,6 +89,14 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (AuthorizationException $e, Request $request) {
             if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'Accès interdit',
+                ], 403);
+            }
+        });
+
+        $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
+            if ($request->is('api/*') && $e->getStatusCode() === 403) {
                 return response()->json([
                     'message' => 'Accès interdit',
                 ], 403);
