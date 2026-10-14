@@ -285,13 +285,22 @@ public function disponibilite(Request $request)
 
         Gate::authorize('rendez-vous.read', $rendezVous);
 
-        // La consultation rattachee contient le diagnostic : elle n'est
-        // chargee qu'une fois l'acces au rendez-vous etabli.
         $rendezVous->load([
             'patient:'.implode(',', self::COLONNES_PATIENT),
             'medecin:'.implode(',', self::COLONNES_MEDECIN),
-            'consultation',
         ]);
+
+        // Lire l'agenda ne donne pas automatiquement le droit de lire le
+        // dossier clinique. La consultation (diagnostic, observations, signes
+        // vitaux...) n'est jointe que si sa propre Gate l'autorise.
+        $consultation = $rendezVous->consultation()->first();
+
+        if (
+            $consultation !== null
+            && Gate::allows('consultations.read', $consultation)
+        ) {
+            $rendezVous->setRelation('consultation', $consultation);
+        }
 
         return response()->json([
             'rendez_vous' => $rendezVous,
