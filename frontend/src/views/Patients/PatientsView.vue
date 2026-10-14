@@ -21,6 +21,7 @@
 
 
       <button
+        v-if="peutAction('patients.creer')"
         class="btn-primary"
         @click="openCreateModal"
       >
@@ -314,6 +315,7 @@
 
                   <!-- MODIFIER -->
                   <button
+                    v-if="peutAction('patients.modifier')"
                     class="action-btn edit"
                     title="Modifier"
                     @click="openEditModal(patient)"
@@ -324,6 +326,7 @@
 
                   <!-- SUPPRIMER -->
                   <button
+                    v-if="peutAction('patients.supprimer')"
                     class="action-btn delete"
                     title="Supprimer"
                     @click="openDeleteModal(patient)"
@@ -652,6 +655,7 @@
 
 
             <button
+              v-if="peutAction(editingPatient ? 'patients.modifier' : 'patients.creer')"
               type="submit"
               class="btn-save"
             >
@@ -887,6 +891,7 @@
 } from 'vue'
 
 import api, { messageErreur } from '../../api.js'
+import { peutAction } from '../../actions.js'
 
 
 /*
