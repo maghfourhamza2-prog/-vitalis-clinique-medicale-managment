@@ -855,4 +855,44 @@ class SecurityHardeningTest extends TestCase
         $response->assertJsonMissingPath('facture.consultation.rendez_vous.motif');
     }
 
+
+    public function test_nested_medical_identity_relations_are_minimized(): void
+    {
+        $dossier = $this->creerDossierClinique();
+
+        $secretary = User::factory()->create([
+            'role' => 'secretaire',
+            'statut' => 'Actif',
+        ]);
+
+        $exam = $this->actingAs($secretary, 'sanctum')
+            ->getJson('/api/demandes-examen/'.$dossier['demande']->id_demande_examen)
+            ->assertStatus(200)
+            ->json('demande_examen');
+
+        $patientExamen = $exam['consultation']['rendez_vous']['patient'];
+        $medecinExamen = $exam['consultation']['rendez_vous']['medecin'];
+
+        foreach (['cin', 'telephone', 'email', 'groupe_sanguin', 'date_naissance'] as $champ) {
+            $this->assertArrayNotHasKey($champ, $patientExamen);
+        }
+
+        foreach (['matricule', 'telephone', 'email', 'date_embauche', 'tarif_consultation'] as $champ) {
+            $this->assertArrayNotHasKey($champ, $medecinExamen);
+        }
+
+        $hospital = $this->actingAs($secretary, 'sanctum')
+            ->getJson('/api/hospitalisations/'.$dossier['hospitalisation']->id_hospitalisation)
+            ->assertStatus(200)
+            ->json('hospitalisation');
+
+        foreach (['cin', 'telephone', 'email', 'groupe_sanguin', 'date_naissance'] as $champ) {
+            $this->assertArrayNotHasKey($champ, $hospital['patient']);
+        }
+
+        foreach (['matricule', 'telephone', 'email', 'date_embauche', 'tarif_consultation'] as $champ) {
+            $this->assertArrayNotHasKey($champ, $hospital['medecin']);
+        }
+    }
+
 }
