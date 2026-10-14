@@ -940,6 +940,7 @@
 
 
           <button
+            v-if="peutAction('examens.supprimer')"
             class="btn-delete"
             @click="deleteExamen"
           >
