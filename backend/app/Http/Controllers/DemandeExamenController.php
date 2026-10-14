@@ -37,8 +37,10 @@ class DemandeExamenController extends Controller
     {
         $demandes = $this->limiterAuPerimetre(DemandeExamen::query(), $request)
             ->with([
-                'consultation.rendezVous.patient',
-                'consultation.rendezVous.medecin',
+                'consultation:id_consultation,id_rendez_vous',
+                'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+                'consultation.rendezVous.patient:id_patient,nom,prenom',
+                'consultation.rendezVous.medecin:id_medecin,nom,prenom',
             ])
             ->get();
 
@@ -53,8 +55,10 @@ class DemandeExamenController extends Controller
         Gate::authorize('examens.read', $demande);
 
         $demande->load([
-            'consultation.rendezVous.patient',
-            'consultation.rendezVous.medecin',
+            'consultation:id_consultation,id_rendez_vous',
+            'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+            'consultation.rendezVous.patient:id_patient,nom,prenom',
+            'consultation.rendezVous.medecin:id_medecin,nom,prenom',
         ]);
 
         $this->masquerDonneesCliniquesPourSecretariat(collect([$demande]), $request);
