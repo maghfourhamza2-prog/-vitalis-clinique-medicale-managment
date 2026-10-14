@@ -192,3 +192,12 @@ Do not merge the security branch until all of the following are true:
 
 
 Validation trigger: 2026-10-14 — final security pipeline run requested after enabling full GitHub access.
+
+## Dependency remediation
+
+The final security branch refreshes the vulnerable Composer lockfile entries identified by CI:
+
+- `laravel/framework` -> `v13.36.0` (past the affected <13.30.0 range);
+- `league/flysystem` -> `3.36.0` (past the affected <=3.35.2 range).
+
+The one-off write-enabled refresh workflow was removed immediately after producing the reviewed lockfile so ongoing updates remain handled by the normal CI/Dependabot process.
