@@ -257,29 +257,30 @@ class FactureController extends Controller
     // Annuler une facture
     public function annuler($id)
     {
-    $facture = Facture::findOrFail($id);
+        $facture = DB::transaction(function () use ($id) {
+            $facture = Facture::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-    // Vérifier si la facture est déjà annulée
-    if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
+            if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
+                abort(409, 'Cette facture est déjà annulée.');
+            }
+
+            if ($facture->paiements()->where('statut', 'valide')->exists()) {
+                abort(409, 'Impossible d\'annuler une facture avec des paiements validés.');
+            }
+
+            $facture->update([
+                'statut_paiement' => StatutFacture::ANNULEE->value,
+            ]);
+
+            return $facture->fresh();
+        });
+
         return response()->json([
-            'message' => 'Cette facture est déjà annulée.'
-        ], 409);
-    }
-
-    if ($facture->paiements()->where('statut', 'valide')->exists()) {
-        return response()->json([
-            'message' => 'Impossible d\'annuler une facture avec des paiements validés. Annulez ou remboursez d\'abord les paiements.',
-        ], 409);
-    }
-
-    $facture->update([
-        'statut_paiement' => StatutFacture::ANNULEE->value
-    ]);
-
-    return response()->json([
-        'message' => 'Facture annulée avec succès',
-        'facture' => $facture
-    ], 200);
+            'message' => 'Facture annulée avec succès',
+            'facture' => $facture,
+        ], 200);
     }
 
     // Afficher l'historique de facturation d'un patient
@@ -396,18 +397,21 @@ class FactureController extends Controller
     // Supprimer une facture
     public function destroy($id)
     {
-        $facture = Facture::findOrFail($id);
+        DB::transaction(function () use ($id) {
+            $facture = Facture::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($facture->paiements()->exists()) {
-            return response()->json([
-                'message' => 'Impossible de supprimer une facture qui contient des paiements.',
-            ], 409);
-        }
+            if ($facture->paiements()->exists()) {
+                abort(409, 'Impossible de supprimer une facture qui contient des paiements.');
+            }
 
-        $facture->delete();
+            $facture->delete();
+        });
 
         return response()->json([
-            'message' => 'Facture supprimée avec succès'
+            'message' => 'Facture supprimée avec succès',
         ], 200);
     }
+
 }
