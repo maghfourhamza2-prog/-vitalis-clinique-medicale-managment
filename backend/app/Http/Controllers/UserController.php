@@ -13,18 +13,24 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
+        $validated = $request->validate([
+            'role' => ['nullable', Rule::enum(Role::class)],
+            'statut' => ['nullable', 'string', Rule::in(['Actif', 'Inactif', 'actif', 'inactif'])],
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
         $query = User::query();
 
-        if ($request->filled('role')) {
-            $query->where('role', $request->input('role'));
+        if (! empty($validated['role'])) {
+            $query->where('role', $validated['role']);
         }
 
-        if ($request->filled('statut')) {
-            $query->where('statut', $request->input('statut'));
+        if (! empty($validated['statut'])) {
+            $query->whereRaw('LOWER(statut) = ?', [strtolower($validated['statut'])]);
         }
 
-        if ($request->filled('search')) {
-            $terme = $request->input('search');
+        if (! empty($validated['search'])) {
+            $terme = $validated['search'];
             $query->where(function ($q) use ($terme) {
                 $q->where('name', 'like', "%{$terme}%")
                     ->orWhere('email', 'like', "%{$terme}%");
