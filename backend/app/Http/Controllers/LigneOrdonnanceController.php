@@ -77,26 +77,17 @@ class LigneOrdonnanceController extends Controller
 
     public function update(Request $request, $id)
     {
-        $ligne = LigneOrdonnance::findOrFail($id);
-        $request->validate([
-          'dosologie' => 'sometimes|required|string|max:255',
-          'frequence' => 'sometimes|required|string|max:255',
-          'duree' => 'sometimes|required|string|max:255',
-          'quantite' => 'sometimes|required|integer|min:1',
-          'instructions' => 'sometimes|required|string',
-          'id_medicament' => 'sometimes|required|integer|exists:medicaments,id_medicament',
-        ]);
+        $ligne = $this->trouverOuRefuser(LigneOrdonnance::find($id), $request);
 
-        // La ligne est rattachee a son ordonnance par PerimetreDossier.
         Gate::authorize('ordonnances.update', $ligne);
 
         $valide = $request->validate([
-            'dosologie' => ['sometimes', 'string', 'max:255'],
-            'frequence' => ['sometimes', 'string', 'max:255'],
-            'duree' => ['sometimes', 'string', 'max:255'],
-            'quantite' => ['sometimes', 'integer', 'min:1'],
-            'instructions' => ['nullable', 'string', 'max:2000'],
-            'id_medicament' => ['sometimes', 'integer', 'exists:medicaments,id_medicament'],
+            'dosologie' => ['sometimes', 'required', 'string', 'max:255'],
+            'frequence' => ['sometimes', 'required', 'string', 'max:255'],
+            'duree' => ['sometimes', 'required', 'string', 'max:255'],
+            'quantite' => ['sometimes', 'required', 'integer', 'min:1'],
+            'instructions' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'id_medicament' => ['sometimes', 'required', 'integer', 'exists:medicaments,id_medicament'],
         ]);
 
         $ligne->update($valide);
