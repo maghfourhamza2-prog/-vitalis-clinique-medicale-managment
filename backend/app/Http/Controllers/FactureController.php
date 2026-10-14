@@ -118,7 +118,7 @@ class FactureController extends Controller
             ],
             'date_facture' => ['sometimes', 'required', 'date'],
             'remise' => ['sometimes', 'required', 'numeric', 'min:0'],
-            'observations' => ['sometimes', 'nullable', 'string'],
+            'observations' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'id_consultation' => [
                 'sometimes',
                 'nullable',
@@ -307,60 +307,69 @@ class FactureController extends Controller
     ], 200);
     }
 
+    /**
+     * Relations strictement necessaires a une facture.
+     *
+     * La secretaire peut lire la facturation mais pas le dossier clinique :
+     * on ne charge donc ni diagnostic, ni motif, ni observations medicales.
+     *
+     * @return array<int, string>
+     */
+    private function relationsFactureImpression(): array
+    {
+        return [
+            'consultation:id_consultation,id_rendez_vous',
+            'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+            'consultation.rendezVous.patient:id_patient,nom,prenom,cin,telephone',
+            'consultation.rendezVous.medecin:id_medecin,nom,prenom,matricule,tarif_consultation',
+            'hospitalisation:id_hospitalisation,date_entree,date_sortie,id_patient,id_medecin,id_chambre',
+            'hospitalisation.patient:id_patient,nom,prenom,cin,telephone',
+            'hospitalisation.medecin:id_medecin,nom,prenom,matricule',
+            'hospitalisation.chambre:id_chambre,tarif_journalier',
+            'paiements:id_paiement,id_facture,date_paiement,heure_paiement,mode_paiement,montant_paye,statut',
+        ];
+    }
+
     // Afficher une facture pour impression
     public function imprimer($id)
     {
-        $facture = Facture::with([
-        'consultation.rendezVous.patient',
-        'consultation.rendezVous.medecin',
-        'hospitalisation.patient',
-        'hospitalisation.medecin',
-        'hospitalisation.chambre',
-        'paiements',
-        ])->findOrFail($id);
+        $facture = Facture::with($this->relationsFactureImpression())
+            ->findOrFail($id);
 
         $patient = $facture->consultation?->rendezVous?->patient
-        ?? $facture->hospitalisation?->patient;
+            ?? $facture->hospitalisation?->patient;
 
         $medecin = $facture->consultation?->rendezVous?->medecin
-        ?? $facture->hospitalisation?->medecin;
+            ?? $facture->hospitalisation?->medecin;
 
-          return response()->json([
-        'facture' => $facture,
-        'patient' => $patient,
-        'medecin' => $medecin,
-    ], 200);
+        return response()->json([
+            'facture' => $facture,
+            'patient' => $patient,
+            'medecin' => $medecin,
+        ], 200);
     }
 
     // Télécharger une facture au format PDF
     public function telecharger($id)
-    { 
-    $facture = Facture::with([
-        'consultation.rendezVous.patient',
-        'consultation.rendezVous.medecin',
-        'hospitalisation.patient',
-        'hospitalisation.medecin',
-        'hospitalisation.chambre',
-        'paiements',
-        ])->findOrFail($id);
+    {
+        $facture = Facture::with($this->relationsFactureImpression())
+            ->findOrFail($id);
 
-    // Déterminer le patient concerné par la facture
-         $patient = $facture->consultation?->rendezVous?->patient
-        ?? $facture->hospitalisation?->patient;
+        $patient = $facture->consultation?->rendezVous?->patient
+            ?? $facture->hospitalisation?->patient;
 
-    // Déterminer le médecin concerné
-         $medecin = $facture->consultation?->rendezVous?->medecin
-        ?? $facture->hospitalisation?->medecin;
+        $medecin = $facture->consultation?->rendezVous?->medecin
+            ?? $facture->hospitalisation?->medecin;
 
         $pdf = Pdf::loadView('factures.pdf', [
-        'facture' => $facture,
-        'patient' => $patient,
-        'medecin' => $medecin,
-    ]);
+            'facture' => $facture,
+            'patient' => $patient,
+            'medecin' => $medecin,
+        ]);
 
-    return $pdf->download(
-        'facture-' . $facture->numero_facture . '.pdf'
-    );
+        return $pdf->download(
+            'facture-'.$facture->numero_facture.'.pdf'
+        );
     }
 
     private function synchroniserStatutPaiement(Facture $facture): void
