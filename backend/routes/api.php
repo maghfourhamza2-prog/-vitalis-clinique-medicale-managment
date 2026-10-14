@@ -377,7 +377,7 @@ Route::get('/health', function () {
 
             Log::error("Health check: service {$service} indisponible", [
                 'service' => $service,
-                'exception' => $e->getMessage(),
+                'exception_type' => $e::class,
             ]);
         }
     }
