@@ -214,6 +214,7 @@
                   </button>
 
                   <button
+                    v-if="peutAction('factures.modifier')"
                     type="button"
                     class="action-btn"
                     title="Modifier"
@@ -223,7 +224,7 @@
                   </button>
 
                   <button
-                    v-if="facture.statut !== 'annulee'"
+                    v-if="facture.statut !== 'annulee' && peutAction('paiements.creer')"
                     type="button"
                     class="action-btn"
                     title="Ajouter un paiement"
@@ -233,7 +234,7 @@
                   </button>
 
                   <button
-                    v-if="facture.statut !== 'annulee'"
+                    v-if="facture.statut !== 'annulee' && peutAction('factures.annuler')"
                     type="button"
                     class="action-btn danger-action"
                     title="Annuler"
@@ -243,6 +244,7 @@
                   </button>
 
                   <button
+                    v-if="peutAction('factures.supprimer')"
                     type="button"
                     class="action-btn danger-action"
                     title="Supprimer"
@@ -427,6 +429,7 @@
             </button>
 
             <button
+              v-if="peutAction(isEditing ? 'factures.modifier' : 'factures.creer')"
               type="submit"
               class="primary-btn"
               :disabled="saving"
@@ -566,6 +569,7 @@
             </button>
 
             <button
+              v-if="peutAction('paiements.creer')"
               type="submit"
               class="primary-btn"
               :disabled="savingPayment"
@@ -771,6 +775,7 @@
             </button>
 
             <button
+              v-if="peutAction('factures.supprimer')"
               type="button"
               class="danger-btn"
               :disabled="deleting"
@@ -786,6 +791,7 @@
 </template>
 
 <script setup>
+import { peutAction } from '../../actions.js'
 import { computed, onMounted, ref } from 'vue'
 import api, { messageErreur } from '../../api'
 
