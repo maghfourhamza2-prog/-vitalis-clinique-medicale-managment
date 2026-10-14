@@ -654,6 +654,7 @@
 
           <div class="form-actions">
             <button
+              v-if="peutAction('parametres.modifier')"
               class="primary-btn"
               @click="saveNotifications"
             >
@@ -779,6 +780,7 @@
 
           <div class="form-actions">
             <button
+              v-if="peutAction('parametres.modifier')"
               class="primary-btn"
               @click="savePreferences"
             >
@@ -823,6 +825,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { peutAction } from '../../actions.js'
 
 /* =========================================================
    MENU
