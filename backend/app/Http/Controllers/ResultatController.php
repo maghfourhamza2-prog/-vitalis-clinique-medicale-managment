@@ -113,12 +113,12 @@ class ResultatController extends Controller
 
         return [
             'date_resultat' => [$requis, 'date'],
-            'resultat_detaille' => [$requis, 'string'],
-            'conclusion' => ['nullable', 'string'],
-            'valeurs_mesurees' => ['nullable', 'string'],
-            'fichier_resultat' => ['nullable', 'string'],
-            'image_resultat' => ['nullable', 'string'],
-            'observations' => ['nullable', 'string'],
+            'resultat_detaille' => [$requis, 'string', 'max:10000'],
+            'conclusion' => ['nullable', 'string', 'max:5000'],
+            'valeurs_mesurees' => ['nullable', 'string', 'max:5000'],
+            'fichier_resultat' => ['nullable', 'string', 'max:2048'],
+            'image_resultat' => ['nullable', 'string', 'max:2048'],
+            'observations' => ['nullable', 'string', 'max:5000'],
             'id_demande_examen' => [$requis, 'integer', 'exists:demandes_examen,id_demande_examen'],
         ];
     }
