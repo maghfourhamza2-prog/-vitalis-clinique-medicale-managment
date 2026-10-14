@@ -1,9 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
+import logging
 
 from src.predict import predict_disease, FEATURES
 
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Vitalis AI Service",
@@ -63,8 +66,9 @@ def predict(request: PredictionRequest):
             "confidence": round(float(confidence), 2)
         }
 
-    except Exception as e:
+    except Exception:
+        logger.exception("Disease prediction failed")
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail="Prediction service temporarily unavailable."
         )

@@ -1,6 +1,8 @@
 name: VITALIS CI
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - develop
@@ -8,6 +10,13 @@ on:
   pull_request:
     branches:
       - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vitalis-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
@@ -19,20 +28,28 @@ jobs:
 
     steps:
       - name: Recuperer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Installer PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
-          extensions: mbstring, pdo, pdo_pgsql
+          extensions: mbstring, pdo, pdo_pgsql, pdo_sqlite
           coverage: none
-
-      - name: Verifier PHP
-        run: php -v
 
       - name: Installer les dependances Composer
         run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Preparer l'environnement de test
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Executer les tests backend
+        run: php artisan test
+
+      - name: Auditer les dependances Composer
+        run: composer audit --locked --no-interaction
 
   frontend:
     runs-on: ubuntu-latest
@@ -43,17 +60,101 @@ jobs:
 
     steps:
       - name: Recuperer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Installer Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Verifier Node.js
-        run: node --version
-
       - name: Installer les dependances npm
         run: npm ci
+
+      - name: Executer les tests frontend
+        run: npm test
+
+      - name: Construire le frontend
+        run: npm run build
+
+      - name: Auditer les dependances npm
+        run: npm audit --audit-level=high
+
+  secrets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer tout l'historique
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Rechercher les secrets exposes
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  filesystem-security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Scanner dependances, secrets et mauvaises configurations
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+
+  container-security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Construire l'image backend de production
+        run: docker build -f backend/Dockerfile.cloudrun -t vitalis-backend-ci:security backend
+
+      - name: Scanner l'image backend
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: vitalis-backend-ci:security
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Construire l'image frontend de production
+        run: |
+          docker build             -f frontend/Dockerfile.prod             --build-arg VITE_API_URL="https://api.invalid/api"             -t vitalis-frontend-ci:security             frontend
+
+      - name: Scanner l'image frontend
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: vitalis-frontend-ci:security
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+
+  sast:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Installer Semgrep
+        run: python3 -m pip install --disable-pip-version-check semgrep==1.180.0
+
+      - name: Analyse statique de securite
+        run: semgrep scan --config p/default --error --metrics=off .

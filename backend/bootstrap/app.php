@@ -1,10 +1,12 @@
 <?php
 
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
+            'audit.api' => \App\Http\Middleware\AuditApiActivity::class,
         ]);
 
         // SCRUM-526 - Limitation de debit sur TOUTE l'API.
@@ -37,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // ce limiteur : /api/login et les routes de mot de passe ont deja les
         // leurs, plus stricts (SCRUM-510).
         $middleware->throttleApi('api');
+        $middleware->appendToGroup('api', \App\Http\Middleware\SecurityHeaders::class);
 
         // SCRUM-529 - Ne pas rediriger un visiteur non authentifie.
         //
@@ -79,6 +84,22 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json([
                     'message' => 'Non authentifié',
                 ], 401);
+            }
+        });
+
+        $exceptions->render(function (AuthorizationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'Accès interdit',
+                ], 403);
+            }
+        });
+
+        $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
+            if ($request->is('api/*') && $e->getStatusCode() === 403) {
+                return response()->json([
+                    'message' => 'Accès interdit',
+                ], 403);
             }
         });
     })->create();

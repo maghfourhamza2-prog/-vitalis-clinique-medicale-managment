@@ -20,7 +20,10 @@ COPY . .
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint \
-    && chmod +x /usr/local/bin/entrypoint
+    && chmod +x /usr/local/bin/entrypoint \
+    && chown -R node:node /app
+
+USER node
 
 EXPOSE 5173
 

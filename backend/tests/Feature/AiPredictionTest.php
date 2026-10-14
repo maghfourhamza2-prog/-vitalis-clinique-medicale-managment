@@ -101,7 +101,7 @@ class AiPredictionTest extends TestCase
             );
     }
 
-    public function test_ai_validation_error_is_forwarded_by_laravel(): void
+    public function test_ai_validation_error_is_not_proxied_to_the_client(): void
     {
         $user = User::factory()->create([
             'role' => 'medecin',
@@ -110,7 +110,7 @@ class AiPredictionTest extends TestCase
         Http::fake([
             '*/predict' => Http::response([
                 'detail' => [
-                    'message' => 'Unknown symptoms detected.',
+                    'message' => 'Internal model validation detail.',
                     'unknown_symptoms' => ['invalid_symptom'],
                 ],
             ], 400),
@@ -121,15 +121,16 @@ class AiPredictionTest extends TestCase
                 'symptoms' => ['invalid_symptom'],
             ]);
 
-        $response->assertStatus(400)
+        $response->assertStatus(422)
             ->assertJsonPath(
-                'detail.message',
-                'Unknown symptoms detected.'
-            )
-            ->assertJsonPath(
-                'detail.unknown_symptoms.0',
-                'invalid_symptom'
+                'message',
+                'Les symptômes fournis ne peuvent pas être analysés.'
             );
+
+        $this->assertStringNotContainsString(
+            'Internal model validation detail.',
+            $response->getContent()
+        );
     }
 
     public function test_ai_service_error_returns_bad_gateway(): void

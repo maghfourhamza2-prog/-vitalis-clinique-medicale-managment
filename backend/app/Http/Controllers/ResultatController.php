@@ -2,101 +2,130 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Models\Resultat;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ResultatController extends Controller
 {
-    // Lister tous les résultats
-    public function index()
+    private function limiterAuPerimetre(Builder $requete, Request $request): Builder
     {
-        $resultats = Resultat::with([
-            'demandeExamen.consultation.rendezVous.patient',
-            'demandeExamen.consultation.rendezVous.medecin'
-        ])->get();
+        $utilisateur = $request->user();
+        $role = Role::tryFrom((string) $utilisateur->role);
 
-        return response()->json([
-            'resultats' => $resultats
-        ], 200);
+        if ($role === null) {
+            return $requete->whereRaw('1 = 0');
+        }
+
+        if ($role->accedeATousLesDossiers()) {
+            return $requete;
+        }
+
+        return $requete->whereHas(
+            'demandeExamen.consultation.rendezVous',
+            function (Builder $q) use ($role, $utilisateur) {
+                if ($role === Role::MEDECIN) {
+                    $q->where('id_medecin', $utilisateur->id_medecin);
+                } else {
+                    $q->where('id_patient', $utilisateur->id_patient);
+                }
+            }
+        );
     }
 
-    // Afficher un résultat
-    public function show($id)
+    public function index(Request $request)
     {
-        $resultat = Resultat::with([
-            'demandeExamen.consultation.rendezVous.patient',
-            'demandeExamen.consultation.rendezVous.medecin'
-        ])->findOrFail($id);
+        $resultats = $this->limiterAuPerimetre(Resultat::query(), $request)
+            ->with([
+                'demandeExamen:id_demande_examen,id_consultation',
+                'demandeExamen.consultation:id_consultation,id_rendez_vous',
+                'demandeExamen.consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+                'demandeExamen.consultation.rendezVous.patient:id_patient,nom,prenom',
+                'demandeExamen.consultation.rendezVous.medecin:id_medecin,nom,prenom',
+            ])
+            ->get();
 
-        return response()->json([
-            'resultat' => $resultat
-        ], 200);
+        return response()->json(['resultats' => $resultats], 200);
     }
 
-    // Ajouter un résultat
-    public function store(Request $request)
+    public function show(Request $request, $id)
     {
-        $validated = $request->validate([
-            'date_resultat' => ['required', 'date'],
-            'resultat_detaille' => ['required', 'string'],
-            'conclusion' => ['nullable', 'string'],
-            'valeurs_mesurees' => ['nullable', 'string'],
-            'fichier_resultat' => ['nullable', 'string'],
-            'image_resultat' => ['nullable', 'string'],
-            'observations' => ['nullable', 'string'],
-            'id_demande_examen' => [
-                'required',
-                'integer',
-                'exists:demandes_examen,id_demande_examen'
-            ],
+        $resultat = $this->trouverOuRefuser(Resultat::find($id), $request);
+        Gate::authorize('resultats.read', $resultat);
+
+        $resultat->load([
+            'demandeExamen:id_demande_examen,id_consultation',
+            'demandeExamen.consultation:id_consultation,id_rendez_vous',
+            'demandeExamen.consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+            'demandeExamen.consultation.rendezVous.patient:id_patient,nom,prenom',
+            'demandeExamen.consultation.rendezVous.medecin:id_medecin,nom,prenom',
         ]);
 
-        $resultat = Resultat::create($validated);
+        return response()->json(['resultat' => $resultat], 200);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate($this->regles(creation: true));
+
+        $resultat = new Resultat($validated);
+        Gate::authorize('resultats.create', $resultat);
+        $resultat->save();
 
         return response()->json([
             'message' => 'Résultat ajouté avec succès',
-            'resultat' => $resultat
+            'resultat' => $resultat,
         ], 201);
     }
 
-    // Modifier un résultat
     public function update(Request $request, $id)
     {
-        $resultat = Resultat::findOrFail($id);
+        $resultat = $this->trouverOuRefuser(Resultat::find($id), $request);
+        Gate::authorize('resultats.update', $resultat);
 
-        $validated = $request->validate([
-            'date_resultat' => ['sometimes', 'required', 'date'],
-            'resultat_detaille' => ['sometimes', 'required', 'string'],
-            'conclusion' => ['sometimes', 'nullable', 'string'],
-            'valeurs_mesurees' => ['sometimes', 'nullable', 'string'],
-            'fichier_resultat' => ['sometimes', 'nullable', 'string'],
-            'image_resultat' => ['sometimes', 'nullable', 'string'],
-            'observations' => ['sometimes', 'nullable', 'string'],
-            'id_demande_examen' => [
-                'sometimes',
-                'required',
-                'integer',
-                'exists:demandes_examen,id_demande_examen'
-            ],
-        ]);
+        $validated = $request->validate($this->regles(creation: false));
+
+        $apresModification = (clone $resultat)->fill($validated);
+        Gate::authorize('resultats.update', $apresModification);
 
         $resultat->update($validated);
 
         return response()->json([
             'message' => 'Résultat modifié avec succès',
-            'resultat' => $resultat
+            'resultat' => $resultat,
         ], 200);
     }
 
-    // Supprimer un résultat
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $resultat = Resultat::findOrFail($id);
+        $resultat = $this->trouverOuRefuser(Resultat::find($id), $request);
+        Gate::authorize('resultats.delete', $resultat);
 
         $resultat->delete();
 
         return response()->json([
-            'message' => 'Résultat supprimé avec succès'
+            'message' => 'Résultat supprimé avec succès',
         ], 200);
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function regles(bool $creation): array
+    {
+        $requis = $creation ? 'required' : 'sometimes';
+
+        return [
+            'date_resultat' => [$requis, 'date'],
+            'resultat_detaille' => [$requis, 'string', 'max:10000'],
+            'conclusion' => ['nullable', 'string', 'max:5000'],
+            'valeurs_mesurees' => ['nullable', 'string', 'max:5000'],
+            'fichier_resultat' => ['nullable', 'string', 'max:2048'],
+            'image_resultat' => ['nullable', 'string', 'max:2048'],
+            'observations' => ['nullable', 'string', 'max:5000'],
+            'id_demande_examen' => [$requis, 'integer', 'exists:demandes_examen,id_demande_examen'],
+        ];
     }
 }

@@ -27,6 +27,7 @@
 
 
       <button
+        v-if="peutAction('examens.creer')"
         class="btn-primary"
         @click="openCreateModal"
       >
@@ -43,7 +44,7 @@
 
     <div class="quick-actions">
 
-      <button class="quick-card">
+      <button v-if="peutAction('examens.creer')" class="quick-card">
 
         <div class="quick-icon blue">
           <i class="fi fi-rr-document"></i>
@@ -339,6 +340,7 @@
 
 
                   <button
+                    v-if="peutAction('examens.modifier')"
                     class="action-btn edit"
                     title="Modifier"
                     @click="openEditModal(examen)"
@@ -348,6 +350,7 @@
 
 
                   <button
+                    v-if="peutAction('examens.supprimer')"
                     class="action-btn delete"
                     title="Supprimer"
                     @click="openDeleteModal(examen)"
@@ -735,6 +738,7 @@
 
 
             <button
+              v-if="peutAction(editingExamen ? 'examens.modifier' : 'examens.creer')"
               type="submit"
               class="btn-save"
             >
@@ -936,6 +940,7 @@
 
 
           <button
+            v-if="peutAction('examens.supprimer')"
             class="btn-delete"
             @click="deleteExamen"
           >
@@ -988,6 +993,8 @@
 } from 'vue'
 
 import api, { messageErreur } from '../../api.js'
+import { peut } from '../../rbac.js'
+import { peutAction } from '../../actions.js'
 
 
 /*
@@ -1090,10 +1097,41 @@ const mapperExamen = (demande) => {
 
   try {
     const reponse = await api.get('/demandes-examen')
+    const demandes = reponse.data?.demandes_examens ?? []
 
-    examens.value = (
-      reponse.data?.demandes_examens ?? []
-    ).map(mapperExamen)
+    let resultats = []
+
+    if (peut('resultats.read')) {
+      try {
+        const reponseResultats = await api.get('/resultats')
+        resultats = reponseResultats.data?.resultats ?? []
+      } catch (error) {
+        showNotification(
+          messageErreur(
+            error,
+            'Les demandes sont disponibles, mais les résultats n’ont pas pu être chargés.'
+          ),
+          'error'
+        )
+      }
+    }
+
+    const resultatsParDemande = new Map(
+      resultats.map(resultat => [
+        Number(resultat.id_demande_examen),
+        resultat
+      ])
+    )
+
+    examens.value = demandes.map(demande =>
+      mapperExamen({
+        ...demande,
+        resultat:
+          resultatsParDemande.get(
+            Number(demande.id_demande_examen)
+          ) ?? null
+      })
+    )
 
   } catch (error) {
 

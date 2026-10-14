@@ -21,6 +21,7 @@
 
 
       <button
+        v-if="peutAction('patients.creer')"
         class="btn-primary"
         @click="openCreateModal"
       >
@@ -35,10 +36,7 @@
     <div class="quick-actions">
 
       <!-- NOUVEAU PATIENT -->
-      <button
-        class="quick-card"
-        @click="openCreateModal"
-      >
+      <button v-if="peutAction('patients.creer')" class="quick-card" @click="openCreateModal">
 
         <div class="quick-icon blue">
           <i class="fi fi-rr-user-add"></i>
@@ -314,6 +312,7 @@
 
                   <!-- MODIFIER -->
                   <button
+                    v-if="peutAction('patients.modifier')"
                     class="action-btn edit"
                     title="Modifier"
                     @click="openEditModal(patient)"
@@ -324,6 +323,7 @@
 
                   <!-- SUPPRIMER -->
                   <button
+                    v-if="peutAction('patients.supprimer')"
                     class="action-btn delete"
                     title="Supprimer"
                     @click="openDeleteModal(patient)"
@@ -358,10 +358,7 @@
                     aux critères sélectionnés.
                   </p>
 
-                  <button
-                    class="btn-primary"
-                    @click="openCreateModal"
-                  >
+                  <button v-if="peutAction('patients.creer')" class="btn-primary" @click="openCreateModal">
                     <i class="fi fi-rr-plus"></i>
                     Nouveau patient
                   </button>
@@ -652,6 +649,7 @@
 
 
             <button
+              v-if="peutAction(editingPatient ? 'patients.modifier' : 'patients.creer')"
               type="submit"
               class="btn-save"
             >
@@ -835,10 +833,7 @@
           </button>
 
 
-          <button
-            class="btn-delete"
-            @click="deletePatient"
-          >
+          <button v-if="peutAction('patients.supprimer')" class="btn-delete" @click="deletePatient">
             Supprimer
           </button>
 
@@ -887,6 +882,7 @@
 } from 'vue'
 
 import api, { messageErreur } from '../../api.js'
+import { peutAction } from '../../actions.js'
 
 
 /*

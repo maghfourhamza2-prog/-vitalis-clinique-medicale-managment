@@ -16,7 +16,7 @@
         </div>
       </div>
 
-      <button class="btn-primary" @click="openCreateModal">
+      <button v-if="peutAction('hospitalisations.creer')" class="btn-primary" @click="openCreateModal">
         <i class="fi fi-rr-plus"></i>
         Nouvelle hospitalisation
       </button>
@@ -26,7 +26,7 @@
     <!-- ===================== QUICK ACTIONS ===================== -->
     <div class="quick-actions">
 
-      <button class="quick-card" @click="openCreateModal">
+      <button v-if="peutAction('hospitalisations.creer')" class="quick-card" @click="openCreateModal">
         <div class="quick-icon blue">
           <i class="fi fi-rr-hospital"></i>
         </div>
@@ -232,6 +232,7 @@
 
 
                   <button
+                    v-if="peutAction('hospitalisations.modifier')"
                     class="action-btn edit"
                     title="Modifier"
                     @click="openEditModal(hospitalisation)"
@@ -241,7 +242,7 @@
 
 
                   <button
-                    v-if="hospitalisation.statut !== 'Sortie'"
+                    v-if="hospitalisation.statut !== 'Sortie' && peutAction('hospitalisations.sortir')"
                     class="action-btn exit"
                     title="Sortie patient"
                     @click="openExitModal(hospitalisation)"
@@ -251,6 +252,7 @@
 
 
                   <button
+                    v-if="peutAction('hospitalisations.supprimer')"
                     class="action-btn delete"
                     title="Supprimer"
                     @click="openDeleteModal(hospitalisation)"
@@ -279,7 +281,7 @@
                     Aucune hospitalisation ne correspond aux critères sélectionnés.
                   </p>
 
-                  <button class="btn-primary" @click="openCreateModal">
+                  <button v-if="peutAction('hospitalisations.creer')" class="btn-primary" @click="openCreateModal">
                     <i class="fi fi-rr-plus"></i>
                     Nouvelle hospitalisation
                   </button>
@@ -514,7 +516,11 @@
             </button>
 
 
-            <button type="submit" class="btn-save">
+            <button
+              v-if="peutAction(editingHospitalisation ? 'hospitalisations.modifier' : 'hospitalisations.creer')"
+              type="submit"
+              class="btn-save"
+            >
               <i class="fi fi-rr-check"></i>
 
               {{
@@ -689,10 +695,7 @@
           </button>
 
 
-          <button
-            class="btn-exit"
-            @click="confirmExit"
-          >
+          <button v-if="peutAction('hospitalisations.sortir')" class="btn-exit" @click="confirmExit">
             <i class="fi fi-rr-check"></i>
             Confirmer la sortie
           </button>
@@ -738,10 +741,7 @@
           </button>
 
 
-          <button
-            class="btn-delete"
-            @click="deleteHospitalisation"
-          >
+          <button v-if="peutAction('hospitalisations.supprimer')" class="btn-delete" @click="deleteHospitalisation">
             Supprimer
           </button>
 
@@ -787,6 +787,7 @@ import {
 } from 'vue'
 
 import api, { messageErreur } from '../../api.js'
+import { peutAction } from '../../actions.js'
 
 
 /*

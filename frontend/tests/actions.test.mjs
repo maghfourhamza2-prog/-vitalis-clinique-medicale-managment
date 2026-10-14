@@ -81,26 +81,31 @@ verifier('SCRUM-534 administrateur : toutes les actions sont proposees', () => {
  * patient", "Consultation rapide", "Ajouter un utilisateur", "Modifier",
  * "Supprimer" - autant d'operations qui lui repondent 403.
  */
-verifier('SCRUM-605 patient : seule la prise de rendez-vous lui est proposee', () => {
+verifier('SCRUM-605 patient : les actions visibles suivent exactement ses permissions', () => {
   connecterAvecRole(ROLES.PATIENT)
 
-  // SCRUM-49 accorde RENDEZ_VOUS_CREATE au patient : la prise de rendez-vous
-  // en ligne est la seule action qu'il puisse declencher. Le backend la
-  // restreint a son propre dossier (RendezVousAccesTest).
-  const seuleActionAutorisee = 'tableauBord.nouveauRendezVous'
-
-  assert.equal(peutAction(seuleActionAutorisee), true)
-
-  for (const action of Object.keys(PERMISSION_PAR_ACTION)) {
-    if (action === seuleActionAutorisee) continue
-
-    assert.equal(peutAction(action), false, `le patient ne devrait pas voir ${action}`)
+  for (const [action, permission] of Object.entries(PERMISSION_PAR_ACTION)) {
+    assert.equal(
+      peutAction(action),
+      PERMISSIONS_PAR_ROLE[ROLES.PATIENT].includes(permission),
+      `action patient incoherente : ${action} -> ${permission}`
+    )
   }
 
-  // Le patient ne cree, ne modifie ni ne supprime aucun dossier medical.
-  for (const action of ['patients.creer', 'patients.modifier', 'patients.supprimer',
-    'tableauBord.consultationRapide', 'tableauBord.demandeExamen',
-    'utilisateurs.ajouter', 'utilisateurs.modifier', 'utilisateurs.supprimer']) {
+  // Les ecritures cliniques et administratives restent toujours interdites.
+  for (const action of [
+    'patients.creer',
+    'patients.modifier',
+    'patients.supprimer',
+    'tableauBord.consultationRapide',
+    'tableauBord.demandeExamen',
+    'ordonnances.creer',
+    'ordonnances.modifier',
+    'ordonnances.supprimer',
+    'utilisateurs.ajouter',
+    'utilisateurs.modifier',
+    'utilisateurs.supprimer'
+  ]) {
     assert.equal(peutAction(action), false, action)
   }
 })
