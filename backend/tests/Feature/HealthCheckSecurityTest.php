@@ -27,22 +27,20 @@ class HealthCheckSecurityTest extends TestCase
         // n'est pas forcement lance sur un poste de developpement). Dans les
         // deux cas, ce n'est ni 401 ni 403 : la sonde doit pouvoir appeler.
         $this->assertContains($reponse->status(), [200, 503]);
-        $reponse->assertJsonStructure(['status', 'services', 'timestamp']);
+        $reponse->assertJsonStructure(['status', 'timestamp']);
+        $reponse->assertJsonMissingPath('services');
     }
 
-    public function test_chaque_service_ne_rapporte_que_ok_ou_failed(): void
+    public function test_le_health_check_public_ne_nomme_pas_les_dependances_internes(): void
     {
-        $services = $this->getJson('/api/health')->json('services');
+        $reponse = $this->getJson('/api/health');
 
-        $this->assertNotEmpty($services);
+        $reponse->assertJsonMissingPath('services');
 
-        foreach ($services as $nom => $etat) {
-            $this->assertContains(
-                $etat,
-                ['ok', 'failed'],
-                "Le service {$nom} rapporte '{$etat}' : seuls 'ok' et 'failed' sont autorises."
-            );
-        }
+        $corps = strtolower($reponse->getContent());
+        $this->assertStringNotContainsString('database', $corps);
+        $this->assertStringNotContainsString('redis', $corps);
+        $this->assertStringNotContainsString('postgres', $corps);
     }
 
     /**
@@ -59,7 +57,8 @@ class HealthCheckSecurityTest extends TestCase
 
         $reponse = $this->getJson('/api/health');
 
-        $reponse->assertJsonPath('services.database', 'failed');
+        $reponse->assertStatus(503);
+        $reponse->assertJsonMissingPath('services');
 
         // Ni le chemin, ni le nom du pilote, ni un extrait d'exception.
         $corps = $reponse->getContent();

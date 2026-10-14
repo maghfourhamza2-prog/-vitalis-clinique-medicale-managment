@@ -7,6 +7,9 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -51,6 +54,12 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        if (! (bool) config('security.allow_public_registration', false)) {
+            return response()->json([
+                'message' => 'L\'inscription publique est désactivée. Contactez l\'administrateur.',
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'email' => [...$this->reglesEmail(), 'unique:users,email'],
@@ -77,6 +86,7 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => Role::PATIENT->value,
+            'statut' => 'Actif',
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -111,7 +121,7 @@ class AuthController extends Controller
             // SCRUM-510 : trace les echecs pour permettre de detecter une
             // attaque par force brute. Le mot de passe n'est jamais journalise.
             Log::warning('Tentative de connexion echouee', [
-                'email' => $request->input('email'),
+                'email_hash' => hash('sha256', Str::lower((string) $request->input('email'))),
                 'ip' => $request->ip(),
             ]);
 
@@ -124,6 +134,159 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
+
+        // Un compte desactive ne doit pas pouvoir continuer a obtenir de
+        // nouveaux jetons. La comparaison est insensible a la casse car les
+        // anciennes donnees utilisent a la fois "actif" et "Actif".
+        $statut = strtolower(trim((string) $user->statut));
+
+        if ($statut !== '' && $statut !== 'actif') {
+            Auth::guard('web')->logout();
+
+            Log::warning('Connexion refusee pour un compte inactif', [
+                'user_id' => $user->id,
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json([
+                'message' => 'Identifiants invalides',
+            ], 401);
+        }
+
+        if ($this->mfaRequisePour($user)) {
+            // Auth::attempt peut ouvrir une session web. Aucun acces ne doit
+            // survivre entre le premier et le second facteur.
+            Auth::guard('web')->logout();
+
+            return $this->demarrerMfa($request, $user);
+        }
+
+        return $this->reponseConnexionReussie($user);
+    }
+
+    public function verifyMfa(Request $request)
+    {
+        $validated = $request->validate([
+            'challenge_id' => ['required', 'string', 'uuid'],
+            'code' => ['required', 'digits:6'],
+        ]);
+
+        $cacheKey = 'mfa:'.$validated['challenge_id'];
+        $challenge = Cache::get($cacheKey);
+
+        if (! is_array($challenge)) {
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        if ((int) ($challenge['expires_at'] ?? 0) < now()->timestamp) {
+            Cache::forget($cacheKey);
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        $maxAttempts = max(1, (int) config('security.mfa.max_attempts', 5));
+        $attempts = (int) ($challenge['attempts'] ?? 0) + 1;
+
+        if ($attempts > $maxAttempts) {
+            Cache::forget($cacheKey);
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        $challenge['attempts'] = $attempts;
+        $remaining = max(1, (int) $challenge['expires_at'] - now()->timestamp);
+        Cache::put($cacheKey, $challenge, now()->addSeconds($remaining));
+
+        $ipHash = hash('sha256', (string) $request->ip());
+        $userAgentHash = hash('sha256', (string) $request->userAgent());
+        $codeHash = hash_hmac('sha256', $validated['code'], (string) config('app.key'));
+
+        if (
+            ! hash_equals((string) ($challenge['ip_hash'] ?? ''), $ipHash)
+            || ! hash_equals((string) ($challenge['user_agent_hash'] ?? ''), $userAgentHash)
+            || ! hash_equals((string) ($challenge['code_hash'] ?? ''), $codeHash)
+        ) {
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        $user = User::find($challenge['user_id'] ?? null);
+
+        $statut = $user === null ? '' : strtolower(trim((string) $user->statut));
+
+        if ($user === null || ($statut !== '' && $statut !== 'actif')) {
+            Cache::forget($cacheKey);
+            return response()->json(['message' => 'Code invalide ou expiré'], 401);
+        }
+
+        Cache::forget($cacheKey);
+
+        return $this->reponseConnexionReussie($user);
+    }
+
+    private function mfaRequisePour(User $user): bool
+    {
+        return (bool) config('security.mfa.enforce_sensitive_roles', false)
+            && in_array((string) $user->role, config('security.mfa.roles', []), true);
+    }
+
+    private function demarrerMfa(Request $request, User $user)
+    {
+        if (
+            app()->environment('production')
+            && in_array((string) config('mail.default'), ['log', 'array'], true)
+        ) {
+            Log::critical('MFA obligatoire mais aucun transport email de production n\'est configure');
+
+            return response()->json([
+                'message' => 'Le second facteur est temporairement indisponible.',
+            ], 503);
+        }
+
+        $challengeId = (string) Str::uuid();
+        $code = (string) random_int(100000, 999999);
+        $ttl = max(60, (int) config('security.mfa.ttl_seconds', 300));
+        $expiresAt = now()->addSeconds($ttl)->timestamp;
+
+        Cache::put('mfa:'.$challengeId, [
+            'user_id' => $user->id,
+            'code_hash' => hash_hmac('sha256', $code, (string) config('app.key')),
+            'ip_hash' => hash('sha256', (string) $request->ip()),
+            'user_agent_hash' => hash('sha256', (string) $request->userAgent()),
+            'attempts' => 0,
+            'expires_at' => $expiresAt,
+        ], now()->addSeconds($ttl));
+
+        try {
+            Mail::raw(
+                "Votre code de sécurité VITALIS est : {$code}\n\nCe code expire dans ".ceil($ttl / 60)." minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)
+                        ->subject('Code de sécurité VITALIS');
+                }
+            );
+        } catch (\Throwable $e) {
+            Cache::forget('mfa:'.$challengeId);
+
+            Log::error('Echec envoi code MFA', [
+                'user_id' => $user->id,
+                'exception_type' => $e::class,
+            ]);
+
+            return response()->json([
+                'message' => 'Le second facteur est temporairement indisponible.',
+            ], 503);
+        }
+
+        return response()->json([
+            'message' => 'Un code de sécurité a été envoyé.',
+            'mfa_required' => true,
+            'challenge_id' => $challengeId,
+            'expires_in' => $ttl,
+        ], 202);
+    }
+
+    private function reponseConnexionReussie(User $user)
+    {
+        $user->forceFill(['derniere_connexion' => now()])->save();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -161,6 +324,52 @@ class AuthController extends Controller
             'user' => $request->user(),
         ], 200);
     }
+
+    public function sessions(Request $request)
+    {
+        $current = $request->user()->currentAccessToken();
+        $currentId = $current instanceof PersonalAccessToken ? $current->id : null;
+
+        $sessions = $request->user()->tokens()
+            ->latest('last_used_at')
+            ->latest('created_at')
+            ->get()
+            ->map(fn (PersonalAccessToken $token) => [
+                'id' => $token->id,
+                'name' => $token->name,
+                'last_used_at' => $token->last_used_at,
+                'created_at' => $token->created_at,
+                'expires_at' => $token->expires_at,
+                'current' => $currentId !== null && $token->id === $currentId,
+            ]);
+
+        return response()->json(['sessions' => $sessions]);
+    }
+
+    public function revokeSession(Request $request, int $tokenId)
+    {
+        $token = $request->user()->tokens()->whereKey($tokenId)->firstOrFail();
+        $token->delete();
+
+        return response()->json([
+            'message' => 'Session révoquée avec succès',
+        ]);
+    }
+
+    public function logoutAll(Request $request)
+    {
+        $request->user()->tokens()->delete();
+
+        if ($request->hasSession()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return response()->json([
+            'message' => 'Toutes les sessions ont été révoquées',
+        ]);
+    }
         /**
      * Demander un lien de réinitialisation de mot de passe
      */
@@ -185,7 +394,7 @@ class AuthController extends Controller
             // SCRUM-526 : l'echec est journalise pour l'equipe, jamais renvoye
             // au client.
             Log::warning('Lien de reinitialisation non envoye', [
-                'email' => $request->input('email'),
+                'email_hash' => hash('sha256', Str::lower((string) $request->input('email'))),
                 'ip' => $request->ip(),
                 'statut' => $status,
             ]);

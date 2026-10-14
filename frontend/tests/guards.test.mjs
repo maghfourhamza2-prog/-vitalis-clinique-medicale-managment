@@ -37,10 +37,10 @@ await verifier('SCRUM-13 deconnecte : /login reste accessible (aucune boucle)', 
   assert.equal(resolveNavigation(login), true)
 })
 
-localStorage.setItem('token', 'jeton-factice-local')
-await verifier('SCRUM-13 connecte via localStorage : /dashboard autorise', () => {
-  assert.equal(isAuthenticated(), true)
-  assert.equal(resolveNavigation(dashboard), true)
+localStorage.setItem('token', 'ancien-jeton-persistant')
+await verifier('SECURITY un ancien token localStorage n authentifie plus', () => {
+  assert.equal(isAuthenticated(), false)
+  assert.equal(resolveNavigation(dashboard).name, 'login')
 })
 
 localStorage.clear()
@@ -69,7 +69,7 @@ await verifier('SCRUM-14 la destination voulue est memorisee dans ?redirect', ()
   })
 })
 
-localStorage.setItem('token', 'jeton-factice-local')
+sessionStorage.setItem('token', 'jeton-factice-session')
 await verifier('SCRUM-14 connecte : /login renvoie vers /dashboard', () => {
   assert.deepEqual(resolveNavigation(login), { name: 'dashboard' })
 })
@@ -101,17 +101,17 @@ await verifier('SCRUM-14 une valeur non textuelle est refusee', () => {
 const utilisateur = { id: 1, name: 'Sara Bennani', email: 'sara@example.com' }
 
 localStorage.clear(); sessionStorage.clear()
-await verifier('SCRUM-15 connexion avec "Se souvenir de moi" : session persistante', () => {
-  saveSession({ token: 'jeton-a', user: utilisateur, remember: true })
-  assert.equal(localStorage.getItem('token'), 'jeton-a')
-  assert.equal(sessionStorage.getItem('token'), null)
+await verifier('SECURITY la connexion reste uniquement dans sessionStorage', () => {
+  saveSession({ token: 'jeton-a', user: utilisateur })
+  assert.equal(localStorage.getItem('token'), null)
+  assert.equal(sessionStorage.getItem('token'), 'jeton-a')
   assert.deepEqual(getUser(), utilisateur)
   assert.equal(isAuthenticated(), true)
 })
 
-await verifier('SCRUM-15 connexion sans "Se souvenir de moi" : session de l onglet', () => {
+await verifier('SECURITY le parametre legacy remember ne rend plus le jeton persistant', () => {
   clearSession()
-  saveSession({ token: 'jeton-b', user: utilisateur, remember: false })
+  saveSession({ token: 'jeton-b', user: utilisateur, remember: true })
   assert.equal(sessionStorage.getItem('token'), 'jeton-b')
   assert.equal(localStorage.getItem('token'), null)
   assert.equal(getToken(), 'jeton-b')
@@ -151,8 +151,8 @@ await verifier('SCRUM-15 apres deconnexion : /dashboard est de nouveau bloque', 
 
 await verifier('SCRUM-15 donnee utilisateur illisible : session effacee, pas de plantage', () => {
   clearSession()
-  localStorage.setItem('token', 'jeton-e')
-  localStorage.setItem('user', '{ceci-n-est-pas-du-json')
+  sessionStorage.setItem('token', 'jeton-e')
+  sessionStorage.setItem('user', '{ceci-n-est-pas-du-json')
   assert.equal(getUser(), null)
   assert.equal(getToken(), null)
 })

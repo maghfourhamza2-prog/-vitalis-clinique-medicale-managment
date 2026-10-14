@@ -85,16 +85,21 @@ const deconnecter = () => { localStorage.clear(); sessionStorage.clear() }
 const CHEMINS_PUBLICS = ['/login', '/forgot-password', '/reset-password']
 
 // Chemins qui doivent exiger une authentification.
-const CHEMINS_PRIVES = ['/dashboard', '/patients', '/patients/new', '/utilisateurs']
-
-// Chemins qui ne correspondent a aucune route. Les cinq premiers sont les
-// liens reellement presents dans la barre laterale de MainLayout.
-const CHEMINS_INCONNUS = [
+const CHEMINS_PRIVES = [
+  '/dashboard',
+  '/patients',
   '/rendez-vous',
   '/consultations',
+  '/ordonnances',
+  '/utilisateurs',
   '/examens',
   '/hospitalisations',
   '/facturation',
+  '/parametres'
+]
+
+// Chemins qui ne correspondent réellement à aucune route.
+const CHEMINS_INCONNUS = [
   '/chemin-invente',
   '/patients/42/dossier-secret'
 ]

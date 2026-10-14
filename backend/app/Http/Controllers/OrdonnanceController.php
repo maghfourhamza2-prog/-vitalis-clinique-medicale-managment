@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Enums\Role;
 use App\Models\Ordonnance;
-use App\Models\Consultation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -131,8 +130,10 @@ class OrdonnanceController extends Controller
     public function index(Request $request)
 {
     $requete = Ordonnance::with([
-        'consultation.rendezVous.patient',
-        'consultation.rendezVous.medecin',
+        'consultation:id_consultation,id_rendez_vous,diagnostic',
+        'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+        'consultation.rendezVous.patient:id_patient,nom,prenom,cin',
+        'consultation.rendezVous.medecin:id_medecin,nom,prenom,id_specialite',
         'lignes.medicament',
     ]);
 
@@ -161,8 +162,10 @@ class OrdonnanceController extends Controller
     {
         $ordonnance = $this->trouverOuRefuser(
         Ordonnance::with([
-            'consultation.rendezVous.patient',
-            'consultation.rendezVous.medecin',
+            'consultation:id_consultation,id_rendez_vous',
+            'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+            'consultation.rendezVous.patient:id_patient,nom,prenom,date_naissance,cin',
+            'consultation.rendezVous.medecin:id_medecin,nom,prenom,matricule',
             'lignes.medicament',
         ])->find($id),
         $request
@@ -181,8 +184,10 @@ class OrdonnanceController extends Controller
     {
         $ordonnance = $this->trouverOuRefuser(
         Ordonnance::with([
-            'consultation.rendezVous.patient',
-            'consultation.rendezVous.medecin',
+            'consultation:id_consultation,id_rendez_vous',
+            'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+            'consultation.rendezVous.patient:id_patient,nom,prenom,date_naissance,cin',
+            'consultation.rendezVous.medecin:id_medecin,nom,prenom,matricule',
             'lignes.medicament',
         ])->find($id),
         $request
@@ -203,69 +208,40 @@ class OrdonnanceController extends Controller
 
 
    public function store(Request $request)
-    {
-    $request->validate([
-        'date_ordonnance' => 'required|date',
-        'instructions_generales' => 'required|string',
-        'duree_traitement' => 'required|string|max:255',
-        'type' => 'required|string|max:255',
-        'id_consultation' => 'required|integer|exists:consultations,id_consultation',
-        ]);
-    $consultation = Consultation::find($request->id_consultation);
+   {
+        $valide = $request->validate($this->regles(creation: true));
 
-Gate::authorize('ordonnances.create', $consultation);
-    $ordonnance = Ordonnance::create(
-        $request->only([
-            'date_ordonnance',
-            'instructions_generales',
-            'duree_traitement',
-            'type',
-            'id_consultation',
-        ])
-        );
+        $ordonnance = new Ordonnance($valide);
+        Gate::authorize('ordonnances.create', $ordonnance);
+        $ordonnance->save();
 
-    return response()->json([
-        'message' => 'Ordonnance ajoutée avec succès',
-        'ordonnance' => $ordonnance
-       ], 201);
-    }
+        return response()->json([
+            'message' => 'Ordonnance ajoutée avec succès',
+            'ordonnance' => $ordonnance,
+        ], 201);
+   }
 
    public function update(Request $request, $id)
    {
-    $ordonnance = $this->trouverOuRefuser(
-    Ordonnance::find($id),
-    $request
-);
+        $ordonnance = $this->trouverOuRefuser(
+            Ordonnance::find($id),
+            $request
+        );
 
-Gate::authorize('ordonnances.update', $ordonnance);
+        Gate::authorize('ordonnances.update', $ordonnance);
 
-        $request->validate([
-        'date_ordonnance' => 'sometimes|required|date',
-        'instructions_generales' => 'sometimes|required|string',
-        'duree_traitement' => 'sometimes|required|string|max:255',
-        'type' => 'sometimes|required|string|max:255',
-        'id_consultation' => 'sometimes|required|integer|exists:consultations,id_consultation',
-       ]);
-    if ($request->has('id_consultation')) {
-    $consultation = Consultation::find($request->id_consultation);
+        $valide = $request->validate($this->regles(creation: false));
 
-    Gate::authorize('ordonnances.update', $consultation);
-}
-        $ordonnance->update(
-        $request->only([
-            'date_ordonnance',
-            'instructions_generales',
-            'duree_traitement',
-            'type',
-            'id_consultation',
-        ])
-       );
+        $apresModification = (clone $ordonnance)->fill($valide);
+        Gate::authorize('ordonnances.update', $apresModification);
+
+        $ordonnance->update($valide);
 
         return response()->json([
-        'message' => 'Ordonnance modifiée avec succès',
-        'ordonnance' => $ordonnance
-       ], 200);
-    }
+            'message' => 'Ordonnance modifiée avec succès',
+            'ordonnance' => $ordonnance,
+        ], 200);
+   }
 
     /**
      * Historique des ordonnances d'un patient.

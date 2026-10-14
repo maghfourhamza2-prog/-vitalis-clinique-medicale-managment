@@ -397,15 +397,15 @@ onMounted(async () => {
                     <i class="fi fi-rr-trash"></i>
                   </button>
 
-                  <button title="Créer ordonnance" class="consultation-action-btn" @click="createOrdonnance(item)">
+                  <button v-if="peutAction('ordonnances.creer')" title="Créer ordonnance" class="consultation-action-btn" @click="createOrdonnance(item)">
                     <i class="fi fi-rr-document"></i>
                   </button>
 
-                  <button title="Imprimer ordonnance" class="consultation-action-btn" @click="printOrdonnance(item)">
+                  <button v-if="peutAction('ordonnances.telecharger')" title="Imprimer ordonnance" class="consultation-action-btn" @click="printOrdonnance(item)">
                     <i class="fi fi-rr-print"></i>
                   </button>
 
-                  <button title="Télécharger ordonnance" class="consultation-action-btn" @click="downloadOrdonnance(item)">
+                  <button v-if="peutAction('ordonnances.telecharger')" title="Télécharger ordonnance" class="consultation-action-btn" @click="downloadOrdonnance(item)">
                     <i class="fi fi-rr-download"></i>
                   </button>
                 </div>

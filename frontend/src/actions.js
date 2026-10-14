@@ -46,13 +46,39 @@ export const PERMISSION_PAR_ACTION = {
   'consultations.creer': 'consultations.create',
   'consultations.modifier': 'consultations.update',
   'consultations.supprimer': 'consultations.delete',
-  
-  // Comptes utilisateurs : le backend ne connait qu'une permission pour tout
-  // ce module, 'roles.manage', accordee au seul administrateur.
-  'utilisateurs.ajouter': 'roles.manage',
-  'utilisateurs.consulter': 'roles.manage',
-  'utilisateurs.modifier': 'roles.manage',
-  'utilisateurs.supprimer': 'roles.manage'
+
+  // Ordonnances
+  'ordonnances.creer': 'ordonnances.create',
+  'ordonnances.modifier': 'ordonnances.update',
+  'ordonnances.supprimer': 'ordonnances.delete',
+  'ordonnances.telecharger': 'ordonnances.read',
+
+  // Examens
+  'examens.creer': 'examens.create',
+  'examens.modifier': 'examens.update',
+  'examens.supprimer': 'examens.delete',
+
+  // Hospitalisations
+  'hospitalisations.creer': 'hospitalisations.create',
+  'hospitalisations.modifier': 'hospitalisations.update',
+  'hospitalisations.sortir': 'hospitalisations.update',
+  'hospitalisations.supprimer': 'hospitalisations.delete',
+
+  // Facturation et paiements
+  'factures.creer': 'factures.create',
+  'factures.modifier': 'factures.update',
+  'factures.annuler': 'factures.update',
+  'factures.supprimer': 'factures.delete',
+  'paiements.creer': 'paiements.create',
+
+  // Parametres administratifs
+  'parametres.modifier': 'roles.manage',
+
+  // Comptes utilisateurs : chaque action suit la permission exacte du backend.
+  'utilisateurs.ajouter': 'users.create',
+  'utilisateurs.consulter': 'users.read',
+  'utilisateurs.modifier': 'users.update',
+  'utilisateurs.supprimer': 'users.delete'
   
 }
 

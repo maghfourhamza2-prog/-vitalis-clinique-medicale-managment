@@ -7,6 +7,7 @@ use App\Models\Facture;
 use App\Models\Hospitalisation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use App\Enums\StatutFacture;
@@ -56,14 +57,10 @@ class FactureController extends Controller
                 'min:0'
             ],
 
-            'statut_paiement' => [
-                'required',
-                Rule::enum(StatutFacture::class)
-            ],
-
             'observations' => [
                 'nullable',
-                'string'
+                'string',
+                'max:5000'
             ],
 
             'id_consultation' => [
@@ -95,6 +92,7 @@ class FactureController extends Controller
 
         $validated['montant_total'] = $montantTotal;
         $validated['montant_net'] = $montantTotal - $remise;
+        $validated['statut_paiement'] = StatutFacture::IMPAYEE->value;
 
         $facture = Facture::create($validated);
 
@@ -116,84 +114,78 @@ class FactureController extends Controller
                 'string',
                 'max:255',
                 Rule::unique('factures', 'numero_facture')
-                    ->ignore($facture->id_facture, 'id_facture')
+                    ->ignore($facture->id_facture, 'id_facture'),
             ],
-
-            'date_facture' => [
-                'sometimes',
-                'required',
-                'date'
-            ],
-
-            'remise' => [
-                'sometimes',
-                'required',
-                'numeric',
-                'min:0'
-            ],
-
-            'statut_paiement' => [
-            'sometimes',
-            'required',
-             Rule::enum(StatutFacture::class)
-            ],
-            
-            'observations' => [
-                'sometimes',
-                'nullable',
-                'string'
-            ],
-
+            'date_facture' => ['sometimes', 'required', 'date'],
+            'remise' => ['sometimes', 'required', 'numeric', 'min:0'],
+            'observations' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'id_consultation' => [
                 'sometimes',
                 'nullable',
                 'integer',
-                'exists:consultations,id_consultation'
+                'exists:consultations,id_consultation',
             ],
-
             'id_hospitalisation' => [
                 'sometimes',
                 'nullable',
                 'integer',
-                'exists:hospitalisations,id_hospitalisation'
+                'exists:hospitalisations,id_hospitalisation',
             ],
         ]);
 
-        $idConsultation = array_key_exists('id_consultation', $validated)
-            ? $validated['id_consultation']
-            : $facture->id_consultation;
+        $facture = DB::transaction(function () use ($id, $validated) {
+            $facture = Facture::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $idHospitalisation = array_key_exists('id_hospitalisation', $validated)
-            ? $validated['id_hospitalisation']
-            : $facture->id_hospitalisation;
+            $idConsultation = array_key_exists('id_consultation', $validated)
+                ? $validated['id_consultation']
+                : $facture->id_consultation;
 
-        $dateFacture = $validated['date_facture']
-            ?? $facture->date_facture;
+            $idHospitalisation = array_key_exists('id_hospitalisation', $validated)
+                ? $validated['id_hospitalisation']
+                : $facture->id_hospitalisation;
 
-        $remise = array_key_exists('remise', $validated)
-            ? (float) $validated['remise']
-            : (float) $facture->remise;
+            $dateFacture = $validated['date_facture'] ?? $facture->date_facture;
+            $remise = array_key_exists('remise', $validated)
+                ? (float) $validated['remise']
+                : (float) $facture->remise;
 
-        $montantTotal = $this->calculerMontantTotal(
-            $idConsultation,
-            $idHospitalisation,
-            $dateFacture
-        );
+            $montantTotal = $this->calculerMontantTotal(
+                $idConsultation,
+                $idHospitalisation,
+                $dateFacture
+            );
 
-        if ($remise > $montantTotal) {
-            throw ValidationException::withMessages([
-                'remise' => 'La remise ne peut pas dépasser le montant total.'
-            ]);
-        }
+            if ($remise > $montantTotal) {
+                throw ValidationException::withMessages([
+                    'remise' => 'La remise ne peut pas dépasser le montant total.',
+                ]);
+            }
 
-        $validated['montant_total'] = $montantTotal;
-        $validated['montant_net'] = $montantTotal - $remise;
+            $montantNet = $montantTotal - $remise;
+            $totalPaye = (float) $facture->paiements()
+                ->where('statut', 'valide')
+                ->sum('montant_paye');
 
-        $facture->update($validated);
+            if ($totalPaye > $montantNet) {
+                throw ValidationException::withMessages([
+                    'remise' => 'La modification ferait passer le montant net sous le total déjà payé.',
+                ]);
+            }
+
+            $validated['montant_total'] = $montantTotal;
+            $validated['montant_net'] = $montantNet;
+
+            $facture->update($validated);
+            $this->synchroniserStatutPaiement($facture);
+
+            return $facture->fresh();
+        });
 
         return response()->json([
             'message' => 'Facture modifiée avec succès',
-            'facture' => $facture
+            'facture' => $facture,
         ], 200);
     }
 
@@ -265,23 +257,30 @@ class FactureController extends Controller
     // Annuler une facture
     public function annuler($id)
     {
-    $facture = Facture::findOrFail($id);
+        $facture = DB::transaction(function () use ($id) {
+            $facture = Facture::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-    // Vérifier si la facture est déjà annulée
-    if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
+            if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
+                abort(409, 'Cette facture est déjà annulée.');
+            }
+
+            if ($facture->paiements()->where('statut', 'valide')->exists()) {
+                abort(409, 'Impossible d\'annuler une facture avec des paiements validés.');
+            }
+
+            $facture->update([
+                'statut_paiement' => StatutFacture::ANNULEE->value,
+            ]);
+
+            return $facture->fresh();
+        });
+
         return response()->json([
-            'message' => 'Cette facture est déjà annulée.'
-        ], 409);
-    }
-
-    $facture->update([
-        'statut_paiement' => StatutFacture::ANNULEE->value
-    ]);
-
-    return response()->json([
-        'message' => 'Facture annulée avec succès',
-        'facture' => $facture
-    ], 200);
+            'message' => 'Facture annulée avec succès',
+            'facture' => $facture,
+        ], 200);
     }
 
     // Afficher l'historique de facturation d'un patient
@@ -309,71 +308,110 @@ class FactureController extends Controller
     ], 200);
     }
 
+    /**
+     * Relations strictement necessaires a une facture.
+     *
+     * La secretaire peut lire la facturation mais pas le dossier clinique :
+     * on ne charge donc ni diagnostic, ni motif, ni observations medicales.
+     *
+     * @return array<int, string>
+     */
+    private function relationsFactureImpression(): array
+    {
+        return [
+            'consultation:id_consultation,id_rendez_vous',
+            'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+            'consultation.rendezVous.patient:id_patient,nom,prenom,cin,telephone',
+            'consultation.rendezVous.medecin:id_medecin,nom,prenom,matricule,tarif_consultation',
+            'hospitalisation:id_hospitalisation,date_entree,date_sortie,id_patient,id_medecin,id_chambre',
+            'hospitalisation.patient:id_patient,nom,prenom,cin,telephone',
+            'hospitalisation.medecin:id_medecin,nom,prenom,matricule',
+            'hospitalisation.chambre:id_chambre,tarif_journalier',
+            'paiements:id_paiement,id_facture,date_paiement,heure_paiement,mode_paiement,montant_paye,statut',
+        ];
+    }
+
     // Afficher une facture pour impression
     public function imprimer($id)
     {
-        $facture = Facture::with([
-        'consultation.rendezVous.patient',
-        'consultation.rendezVous.medecin',
-        'hospitalisation.patient',
-        'hospitalisation.medecin',
-        'hospitalisation.chambre',
-        'paiements',
-        ])->findOrFail($id);
+        $facture = Facture::with($this->relationsFactureImpression())
+            ->findOrFail($id);
 
         $patient = $facture->consultation?->rendezVous?->patient
-        ?? $facture->hospitalisation?->patient;
+            ?? $facture->hospitalisation?->patient;
 
         $medecin = $facture->consultation?->rendezVous?->medecin
-        ?? $facture->hospitalisation?->medecin;
+            ?? $facture->hospitalisation?->medecin;
 
-          return response()->json([
-        'facture' => $facture,
-        'patient' => $patient,
-        'medecin' => $medecin,
-    ], 200);
+        return response()->json([
+            'facture' => $facture,
+            'patient' => $patient,
+            'medecin' => $medecin,
+        ], 200);
     }
 
     // Télécharger une facture au format PDF
     public function telecharger($id)
-    { 
-    $facture = Facture::with([
-        'consultation.rendezVous.patient',
-        'consultation.rendezVous.medecin',
-        'hospitalisation.patient',
-        'hospitalisation.medecin',
-        'hospitalisation.chambre',
-        'paiements',
-        ])->findOrFail($id);
+    {
+        $facture = Facture::with($this->relationsFactureImpression())
+            ->findOrFail($id);
 
-    // Déterminer le patient concerné par la facture
-         $patient = $facture->consultation?->rendezVous?->patient
-        ?? $facture->hospitalisation?->patient;
+        $patient = $facture->consultation?->rendezVous?->patient
+            ?? $facture->hospitalisation?->patient;
 
-    // Déterminer le médecin concerné
-         $medecin = $facture->consultation?->rendezVous?->medecin
-        ?? $facture->hospitalisation?->medecin;
+        $medecin = $facture->consultation?->rendezVous?->medecin
+            ?? $facture->hospitalisation?->medecin;
 
         $pdf = Pdf::loadView('factures.pdf', [
-        'facture' => $facture,
-        'patient' => $patient,
-        'medecin' => $medecin,
-    ]);
+            'facture' => $facture,
+            'patient' => $patient,
+            'medecin' => $medecin,
+        ]);
 
-    return $pdf->download(
-        'facture-' . $facture->numero_facture . '.pdf'
-    );
+        return $pdf->download(
+            'facture-'.$facture->numero_facture.'.pdf'
+        );
+    }
+
+    private function synchroniserStatutPaiement(Facture $facture): void
+    {
+        if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
+            return;
+        }
+
+        $totalPaye = (float) $facture->paiements()
+            ->where('statut', 'valide')
+            ->sum('montant_paye');
+
+        $montantNet = (float) $facture->montant_net;
+
+        $statut = match (true) {
+            $totalPaye <= 0 => StatutFacture::IMPAYEE->value,
+            $totalPaye < $montantNet => StatutFacture::PARTIELLE->value,
+            default => StatutFacture::PAYEE->value,
+        };
+
+        $facture->update(['statut_paiement' => $statut]);
     }
 
     // Supprimer une facture
     public function destroy($id)
     {
-        $facture = Facture::findOrFail($id);
+        DB::transaction(function () use ($id) {
+            $facture = Facture::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $facture->delete();
+            if ($facture->paiements()->exists()) {
+                abort(409, 'Impossible de supprimer une facture qui contient des paiements.');
+            }
+
+            $facture->delete();
+        });
 
         return response()->json([
-            'message' => 'Facture supprimée avec succès'
+            'message' => 'Facture supprimée avec succès',
         ], 200);
     }
+
 }

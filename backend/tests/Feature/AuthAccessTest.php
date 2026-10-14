@@ -70,6 +70,42 @@ class AuthAccessTest extends TestCase
         $this->assertArrayNotHasKey('token', $response->json());
     }
 
+    public function test_inactive_account_cannot_log_in(): void
+    {
+        User::factory()->create([
+            'email' => 'inactif@example.com',
+            'password' => 'password',
+            'statut' => 'Inactif',
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'inactif@example.com',
+            'password' => 'password',
+        ]);
+
+        $response->assertStatus(401)
+            ->assertJson(['message' => 'Identifiants invalides']);
+
+        $this->assertArrayNotHasKey('token', $response->json());
+    }
+
+    public function test_login_records_last_connection(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'actif@example.com',
+            'password' => 'password',
+            'statut' => 'Actif',
+            'derniere_connexion' => null,
+        ]);
+
+        $this->postJson('/api/login', [
+            'email' => 'actif@example.com',
+            'password' => 'password',
+        ])->assertStatus(200);
+
+        $this->assertNotNull($user->fresh()->derniere_connexion);
+    }
+
     public function test_login_returns_a_token_and_never_exposes_the_password(): void
     {
         User::factory()->create([

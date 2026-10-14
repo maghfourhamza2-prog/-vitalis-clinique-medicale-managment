@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
+            'audit.api' => \App\Http\Middleware\AuditApiActivity::class,
         ]);
 
         // SCRUM-526 - Limitation de debit sur TOUTE l'API.
@@ -37,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // ce limiteur : /api/login et les routes de mot de passe ont deja les
         // leurs, plus stricts (SCRUM-510).
         $middleware->throttleApi('api');
+        $middleware->appendToGroup('api', \App\Http\Middleware\SecurityHeaders::class);
 
         // SCRUM-529 - Ne pas rediriger un visiteur non authentifie.
         //

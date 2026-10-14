@@ -10,3 +10,10 @@ Artisan::command('inspire', function () {
 
 // SCRUM-613 - Rappel automatique 24h avant un rendez-vous.
 Schedule::command('rendezvous:envoyer-rappels')->hourly();
+
+
+// Security: apply the clinic-approved audit retention policy once per day.
+// With AUDIT_RETENTION_DAYS=0 the command is a safe no-op.
+Schedule::command('audit:prune')
+    ->dailyAt('03:15')
+    ->withoutOverlapping();

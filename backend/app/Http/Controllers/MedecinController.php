@@ -2,28 +2,48 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Models\Medecin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class MedecinController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $medecins = Medecin::all();
 
+        $this->minimiserAnnuaire($medecins, $request);
+
         return response()->json([
-            'medecins' => $medecins
+            'medecins' => $medecins,
         ], 200);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
-    $medecin = Medecin::findOrFail($id);
+        $medecin = Medecin::findOrFail($id);
 
-    return response()->json([
-        'medecin' => $medecin
-    ], 200);
+        $this->minimiserAnnuaire(collect([$medecin]), $request);
+
+        return response()->json([
+            'medecin' => $medecin,
+        ], 200);
+    }
+
+    private function minimiserAnnuaire($medecins, Request $request): void
+    {
+        if (Role::tryFrom((string) $request->user()->role) === Role::ADMINISTRATEUR) {
+            return;
+        }
+
+        foreach ($medecins as $medecin) {
+            $medecin->makeHidden([
+                'matricule',
+                'date_embauche',
+                'tarif_consultation',
+            ]);
+        }
     }
 
     public function store(Request $request)

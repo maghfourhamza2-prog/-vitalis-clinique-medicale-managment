@@ -7,23 +7,30 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UserController extends Controller
 {
     public function index(Request $request)
     {
+        $validated = $request->validate([
+            'role' => ['nullable', Rule::enum(Role::class)],
+            'statut' => ['nullable', 'string', Rule::in(['Actif', 'Inactif', 'actif', 'inactif'])],
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
         $query = User::query();
 
-        if ($request->filled('role')) {
-            $query->where('role', $request->input('role'));
+        if (! empty($validated['role'])) {
+            $query->where('role', $validated['role']);
         }
 
-        if ($request->filled('statut')) {
-            $query->where('statut', $request->input('statut'));
+        if (! empty($validated['statut'])) {
+            $query->whereRaw('LOWER(statut) = ?', [strtolower($validated['statut'])]);
         }
 
-        if ($request->filled('search')) {
-            $terme = $request->input('search');
+        if (! empty($validated['search'])) {
+            $terme = $validated['search'];
             $query->where(function ($q) use ($terme) {
                 $q->where('name', 'like', "%{$terme}%")
                     ->orWhere('email', 'like', "%{$terme}%");
@@ -42,7 +49,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'max:255', 'confirmed', Password::min(8)->letters()->numbers()],
             'role' => ['required', Rule::enum(Role::class)],
             'statut' => ['nullable', 'string', Rule::in(['Actif', 'Inactif'])],
             'id_medecin' => ['nullable', 'integer', 'exists:medecins,id_medecin'],
@@ -81,13 +88,25 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'role' => ['required', Rule::enum(Role::class)],
             'statut' => ['nullable', 'string', Rule::in(['Actif', 'Inactif'])],
             'id_medecin' => ['nullable', 'integer', 'exists:medecins,id_medecin'],
             'id_patient' => ['nullable', 'integer', 'exists:patients,id_patient'],
         ]);
 
+        if (
+            $request->user()->is($user)
+            && strtolower((string) ($validated['statut'] ?? $user->statut)) === 'inactif'
+        ) {
+            return response()->json([
+                'message' => 'Vous ne pouvez pas désactiver votre propre compte',
+            ], 403);
+        }
+
         $user->update($validated);
+
+        if (strtolower((string) $user->statut) === 'inactif') {
+            $user->tokens()->delete();
+        }
 
         return response()->json([
             'message' => 'Utilisateur modifié avec succès',
@@ -106,6 +125,7 @@ class UserController extends Controller
             ], 403);
         }
 
+        $user->tokens()->delete();
         $user->delete();
 
         return response()->json([

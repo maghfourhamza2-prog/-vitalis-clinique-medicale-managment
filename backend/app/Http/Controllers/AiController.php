@@ -17,12 +17,12 @@ class AiController extends Controller
     public function predict(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'symptoms' => ['required', 'array', 'min:1'],
-            'symptoms.*' => ['required', 'string'],
+            'symptoms' => ['required', 'array', 'min:1', 'max:30'],
+            'symptoms.*' => ['required', 'string', 'max:100'],
         ]);
 
         $aiServiceUrl = rtrim(
-            env('AI_SERVICE_URL', 'http://ai:8000'),
+            (string) config('services.vitalis_ai.url', 'http://ai:8000'),
             '/'
         );
 
@@ -33,10 +33,11 @@ class AiController extends Controller
                 ]);
 
             if ($response->status() === 400) {
-                return response()->json(
-                    $response->json(),
-                    400
-                );
+                // Ne pas transformer Laravel en proxy d'erreurs internes du
+                // service ML : le client recoit un message stable et borne.
+                return response()->json([
+                    'message' => 'Les symptômes fournis ne peuvent pas être analysés.',
+                ], 422);
             }
 
             if (!$response->successful()) {
@@ -49,7 +50,14 @@ class AiController extends Controller
 
             $disease = $prediction['disease'] ?? null;
             $confidence = $prediction['confidence'] ?? null;
-            
+
+            if (! is_string($disease) || ! is_numeric($confidence)) {
+                return response()->json([
+                    'message' => 'AI service returned an invalid response.',
+                ], 502);
+            }
+
+            $confidence = max(0.0, min(100.0, (float) $confidence));
             $specialityName = $this->getRecommendedSpeciality($disease);
 
             $speciality = DB::table('specialites')
@@ -64,10 +72,7 @@ class AiController extends Controller
                     ->select(
                         'id_medecin',
                         'nom',
-                        'prenom',
-                        'telephone',
-                        'email',
-                        'tarif_consultation'
+                        'prenom'
                     )
                     ->get();
             }
@@ -96,7 +101,7 @@ public function chat(Request $request): JsonResponse
         'message' => ['required', 'string', 'max:1000'],
     ]);
 
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = config('services.gemini.key');
 
     if (!$apiKey) {
         return response()->json([
@@ -105,6 +110,8 @@ public function chat(Request $request): JsonResponse
     }
 
     try {
+        $messageMinimise = $this->minimiserMessageExterne($validated['message']);
+
         $prompt = <<<PROMPT
 Tu es AI SMART, l'assistant virtuel de la clinique Vitalis.
 
@@ -119,15 +126,15 @@ Ton rôle :
 - en cas de symptômes potentiellement urgents, recommander de contacter
   rapidement les services médicaux appropriés.
 
-Question du patient :
-{$validated['message']}
+Question du patient (les identifiants directs ont été masqués avant l'envoi) :
+{$messageMinimise}
 PROMPT;
     $response = Http::timeout(20)
     ->withHeaders([
         'x-goog-api-key' => $apiKey,
     ])
     ->post(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
+        'https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode((string) config('services.gemini.model', 'gemini-3.6-flash')).':generateContent',
         [
                     'contents' => [
                         [
@@ -172,6 +179,34 @@ $reply = collect($parts)
         ], 503);
     }
 }
+
+    /**
+     * Retire les identifiants directs les plus courants avant tout envoi a un
+     * fournisseur IA externe. Le texte medical utile est conserve, mais les
+     * emails, numeros de telephone et identifiants de type CIN sont masques.
+     */
+    private function minimiserMessageExterne(string $message): string
+    {
+        $message = preg_replace(
+            '/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/iu',
+            '[EMAIL_MASQUE]',
+            $message
+        ) ?? $message;
+
+        $message = preg_replace(
+            '/(?<!\\d)(?:\\+?212|0)[5-7]\\d(?:[ .-]?\\d{2}){4}(?!\\d)/u',
+            '[TELEPHONE_MASQUE]',
+            $message
+        ) ?? $message;
+
+        $message = preg_replace(
+            '/(?<![A-Z0-9])[A-Z]{1,2}\\d{5,8}(?![A-Z0-9])/iu',
+            '[IDENTIFIANT_MASQUE]',
+            $message
+        ) ?? $message;
+
+        return trim($message);
+    }
 
     /**
      * Associe la prediction du modele a une specialite

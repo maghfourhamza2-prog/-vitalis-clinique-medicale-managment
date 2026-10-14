@@ -59,9 +59,15 @@ const connecterAvecRole = (role) => {
 
 // Ecrans prives et permission qui les gouverne.
 const ECRANS = [
-  { chemin: '/utilisateurs', permission: 'roles.manage' },
+  { chemin: '/utilisateurs', permission: 'users.read' },
   { chemin: '/patients', permission: 'patients.read' },
-  { chemin: '/patients/new', permission: 'patients.create' },
+  { chemin: '/rendez-vous', permission: 'rendez-vous.read' },
+  { chemin: '/consultations', permission: 'consultations.read' },
+  { chemin: '/ordonnances', permission: 'ordonnances.read' },
+  { chemin: '/examens', permission: 'examens.read' },
+  { chemin: '/hospitalisations', permission: 'hospitalisations.read' },
+  { chemin: '/facturation', permission: 'factures.read' },
+  { chemin: '/parametres', permission: 'roles.manage' },
   { chemin: '/dashboard', permission: null }
 ]
 
@@ -112,7 +118,7 @@ await verifier('SCRUM-535 URL directe : chaque role n atteint que ce qu il peut'
 await verifier('SCRUM-535 le refus mene au tableau de bord, jamais a une impasse', async () => {
   connecterAvecRole(ROLES.PATIENT)
 
-  for (const chemin of ['/utilisateurs', '/patients', '/patients/new']) {
+  for (const chemin of ['/utilisateurs', '/patients', '/consultations', '/ordonnances', '/examens', '/hospitalisations', '/facturation', '/parametres']) {
     const arrivee = await aller(chemin)
     assert.equal(arrivee.name, 'dashboard', `${chemin} devrait mener au tableau de bord`)
   }
@@ -143,7 +149,6 @@ await verifier('SCRUM-535 le personnel garde acces aux dossiers patients', async
     connecterAvecRole(role)
 
     assert.equal((await aller('/patients')).path, '/patients', `role ${role}`)
-    assert.equal((await aller('/patients/new')).path, '/patients/new', `role ${role}`)
 
     // ...mais pas a la gestion des comptes.
     assert.equal((await aller('/utilisateurs')).name, 'dashboard', `role ${role}`)
@@ -160,7 +165,7 @@ await verifier('SCRUM-535 le tableau de bord reste ouvert a tous les roles', asy
 await verifier('SCRUM-535 role inconnu : aucun ecran privilegie', async () => {
   connecterAvecRole('super-admin')
 
-  for (const chemin of ['/utilisateurs', '/patients', '/patients/new']) {
+  for (const chemin of ['/utilisateurs', '/patients', '/consultations', '/ordonnances', '/examens', '/hospitalisations', '/facturation', '/parametres']) {
     assert.equal((await aller(chemin)).name, 'dashboard', chemin)
   }
 })

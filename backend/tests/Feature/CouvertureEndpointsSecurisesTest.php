@@ -49,6 +49,7 @@ class CouvertureEndpointsSecurisesTest extends TestCase
      */
     private const ROUTES_PUBLIQUES = [
         'api/login',
+        'api/login/mfa',
         'api/register',
         'api/forgot-password',
         'api/reset-password',
@@ -80,9 +81,12 @@ class CouvertureEndpointsSecurisesTest extends TestCase
     ];
 
     private const SANS_PERMISSION_ASSUMEE = [
-        'api/logout',     // revoque le jeton de l'appelant
-        'api/me',         // renvoie le compte de l'appelant
-        'api/dashboard',  // DashboardController aiguille selon le role
+        'api/logout',             // revoque le jeton de l'appelant
+        'api/logout-all',         // revoque toutes les sessions de l'appelant
+        'api/sessions',           // liste uniquement les sessions de l'appelant
+        'api/sessions/{tokenId}', // revoque uniquement une session de l'appelant
+        'api/me',                 // renvoie le compte de l'appelant
+        'api/dashboard',          // DashboardController aiguille selon le role
     ];
 
     /**

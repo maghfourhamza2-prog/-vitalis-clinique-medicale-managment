@@ -10,6 +10,7 @@
       </div>
 
       <button
+        v-if="peutAction('factures.creer')"
         class="primary-btn header-create-btn"
         type="button"
         @click="openCreateModal"
@@ -214,6 +215,7 @@
                   </button>
 
                   <button
+                    v-if="peutAction('factures.modifier')"
                     type="button"
                     class="action-btn"
                     title="Modifier"
@@ -223,7 +225,7 @@
                   </button>
 
                   <button
-                    v-if="facture.statut !== 'annulee'"
+                    v-if="facture.statut !== 'annulee' && peutAction('paiements.creer')"
                     type="button"
                     class="action-btn"
                     title="Ajouter un paiement"
@@ -233,7 +235,7 @@
                   </button>
 
                   <button
-                    v-if="facture.statut !== 'annulee'"
+                    v-if="facture.statut !== 'annulee' && peutAction('factures.annuler')"
                     type="button"
                     class="action-btn danger-action"
                     title="Annuler"
@@ -243,6 +245,7 @@
                   </button>
 
                   <button
+                    v-if="peutAction('factures.supprimer')"
                     type="button"
                     class="action-btn danger-action"
                     title="Supprimer"
@@ -339,24 +342,6 @@
               />
             </div>
 
-            <!-- STATUT -->
-            <div class="form-group">
-              <label for="statut_paiement">
-                Statut *
-              </label>
-
-              <select
-                id="statut_paiement"
-                v-model="form.statut_paiement"
-                required
-              >
-                <option value="impayee">Impayée</option>
-                <option value="partielle">Partiellement payée</option>
-                <option value="payee">Payée</option>
-                <option value="annulee">Annulée</option>
-              </select>
-            </div>
-
             <!-- CONSULTATION -->
             <div class="form-group">
               <label for="id_consultation">
@@ -427,6 +412,7 @@
             </button>
 
             <button
+              v-if="peutAction(isEditing ? 'factures.modifier' : 'factures.creer')"
               type="submit"
               class="primary-btn"
               :disabled="saving"
@@ -566,6 +552,7 @@
             </button>
 
             <button
+              v-if="peutAction('paiements.creer')"
               type="submit"
               class="primary-btn"
               :disabled="savingPayment"
@@ -771,6 +758,7 @@
             </button>
 
             <button
+              v-if="peutAction('factures.supprimer')"
               type="button"
               class="danger-btn"
               :disabled="deleting"
@@ -786,6 +774,7 @@
 </template>
 
 <script setup>
+import { peutAction } from '../../actions.js'
 import { computed, onMounted, ref } from 'vue'
 import api, { messageErreur } from '../../api'
 
@@ -837,7 +826,6 @@ const defaultForm = () => ({
   numero_facture: '',
   date_facture: getToday(),
   remise: 0,
-  statut_paiement: 'impayee',
   observations: '',
   id_consultation: '',
   id_hospitalisation: ''
@@ -1071,8 +1059,6 @@ function openEditModal(facture) {
       raw.date_facture
     ),
     remise: Number(raw.remise || 0),
-    statut_paiement:
-      raw.statut_paiement || facture.statut || 'impayee',
     observations: raw.observations || '',
     id_consultation:
       raw.id_consultation || '',
@@ -1121,8 +1107,6 @@ async function saveFacture() {
       form.value.date_facture,
     remise:
       Number(form.value.remise || 0),
-    statut_paiement:
-      form.value.statut_paiement,
     observations:
       form.value.observations || null,
     id_consultation:

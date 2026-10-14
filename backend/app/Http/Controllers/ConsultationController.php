@@ -35,8 +35,8 @@ class ConsultationController extends Controller
     {
         return [
             'motif' => ['required', 'string', 'max:255'],
-            'diagnostic' => ['required', 'string'],
-            'observations' => ['nullable', 'string'],
+            'diagnostic' => ['required', 'string', 'max:10000'],
+            'observations' => ['nullable', 'string', 'max:10000'],
             'poids' => ['nullable', 'numeric', 'between:0,999.99'],
             'taille' => ['nullable', 'numeric', 'between:0,999.99'],
             'tension_arterielle' => ['nullable', 'string', 'max:20'],
@@ -122,29 +122,29 @@ class ConsultationController extends Controller
     {
         $valide = $request->validate($this->regles(creation: true));
 
-        $rendezVous = RendezVous::findOrFail($valide['id_rendez_vous']);
-
         $consultation = new Consultation($valide);
         Gate::authorize('consultations.create', $consultation);
 
-        // Une seule consultation par rendez-vous (hasOne cote RendezVous).
-        if ($rendezVous->consultation()->exists()) {
-            return response()->json([
-                'message' => 'Une consultation existe déjà pour ce rendez-vous.',
-            ], 409);
-        }
+        $consultation = DB::transaction(function () use ($valide) {
+            $rendezVous = RendezVous::whereKey($valide['id_rendez_vous'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if (in_array($rendezVous->statut, ['Annulé'], true)) {
-            return response()->json([
-                'message' => 'Impossible de créer une consultation pour un rendez-vous annulé.',
-            ], 409);
-        }
+            if ($rendezVous->consultation()->exists()) {
+                abort(409, 'Une consultation existe déjà pour ce rendez-vous.');
+            }
 
-        DB::transaction(function () use ($consultation, $rendezVous) {
-            $consultation->save();
+            if (in_array($rendezVous->statut, ['Annulé', 'annule', 'annulee'], true)) {
+                abort(409, 'Impossible de créer une consultation pour un rendez-vous annulé.');
+            }
 
-            $rendezVous->statut = 'Terminé';
-            $rendezVous->save();
+            $consultation = Consultation::create($valide);
+
+            $rendezVous->update([
+                'statut' => 'Terminé',
+            ]);
+
+            return $consultation;
         });
 
         return response()->json([

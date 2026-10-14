@@ -15,17 +15,22 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $data = match ($user->role) {
-            Role::ADMINISTRATEUR->value => $this->adminDashboard(),
-            Role::MEDECIN->value        => $this->medecinDashboard($user),
-            Role::SECRETAIRE->value     => $this->secretaireDashboard(),
-            Role::INFIRMIER->value      => $this->infirmierDashboard(),
-            Role::PATIENT->value        => $this->patientDashboard($user),
-            default => [],
+        $role = Role::tryFrom((string) $user->role);
+
+        if ($role === null) {
+            abort(403, 'Accès interdit');
+        }
+
+        $data = match ($role) {
+            Role::ADMINISTRATEUR => $this->adminDashboard(),
+            Role::MEDECIN        => $this->medecinDashboard($user),
+            Role::SECRETAIRE     => $this->secretaireDashboard(),
+            Role::INFIRMIER      => $this->infirmierDashboard(),
+            Role::PATIENT        => $this->patientDashboard($user),
         };
 
         return response()->json([
-            'role' => $user->role,
+            'role' => $role->value,
             'data' => $data,
         ]);
     }
@@ -75,19 +80,11 @@ class DashboardController extends Controller
             ->whereDate('rendez_vous.date_rendez_vous', $today)
             ->count();
 
-        $chiffreAffaires = DB::table('factures')
-            ->join('consultations', 'factures.id_consultation', '=', 'consultations.id_consultation')
-            ->join('rendez_vous', 'consultations.id_rendez_vous', '=', 'rendez_vous.id_rendez_vous')
-            ->where('rendez_vous.id_medecin', $user->id_medecin)
-            ->whereDate('factures.date_facture', $today)
-            ->sum('factures.montant_net');
-
         return [
             'stats' => [
                 'patients' => $rendezVousAujourdhui->count(),
                 'rendezVous' => $rendezVousAujourdhui->count(),
                 'consultations' => $consultationsAujourdhui,
-                'chiffreAffaires' => number_format($chiffreAffaires, 0, ',', ' ') . ' DH',
             ],
             'rendezVous' => $rendezVousAujourdhui->map(fn ($rdv) => [
                 'heure' => substr($rdv->heure_debut, 0, 5),
