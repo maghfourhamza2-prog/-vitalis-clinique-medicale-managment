@@ -75,6 +75,8 @@ COPY docker/entrypoint.sh /usr/local/bin/entrypoint
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint \
     && chmod +x /usr/local/bin/entrypoint
 
+USER www-data
+
 EXPOSE 9000
 
 ENTRYPOINT ["entrypoint"]
