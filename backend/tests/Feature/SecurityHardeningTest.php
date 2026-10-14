@@ -112,7 +112,7 @@ class SecurityHardeningTest extends TestCase
             'id_medecin' => $idMedecin,
         ]);
 
-        return compact('patient', 'resultat', 'demande', 'hospitalisation');
+        return compact('patient', 'idMedecin', 'rendezVous', 'resultat', 'demande', 'hospitalisation');
     }
 
     public function test_inactive_account_with_existing_token_is_revoked(): void
@@ -468,6 +468,83 @@ class SecurityHardeningTest extends TestCase
                 ! str_contains(json_encode([$message, $context]), $email)
                 && array_key_exists('email_hash', $context)
         );
+    }
+
+
+    public function test_doctor_patient_register_is_limited_to_linked_patients(): void
+    {
+        $owned = $this->creerDossierClinique();
+
+        $otherPatient = Patient::create([
+            'nom' => 'Autre',
+            'prenom' => 'Patient',
+            'date_naissance' => '1992-02-02',
+            'sexe' => 'M',
+            'cin' => 'OTH'.random_int(100000, 999999),
+            'telephone' => '0600000099',
+            'email' => 'other'.random_int(1000, 9999).'@example.com',
+            'groupe_sanguin' => 'A+',
+        ]);
+
+        $doctor = User::factory()->create([
+            'role' => 'medecin',
+            'statut' => 'Actif',
+            'id_medecin' => $owned['idMedecin'],
+        ]);
+
+        $this->actingAs($doctor, 'sanctum')
+            ->getJson('/api/patients/'.$owned['patient']->id_patient)
+            ->assertStatus(200);
+
+        $this->actingAs($doctor, 'sanctum')
+            ->getJson('/api/patients/'.$otherPatient->id_patient)
+            ->assertStatus(403);
+
+        $list = $this->actingAs($doctor, 'sanctum')
+            ->getJson('/api/patients')
+            ->assertStatus(200)
+            ->json('patients.data');
+
+        $ids = collect($list)->pluck('id_patient');
+        $this->assertTrue($ids->contains($owned['patient']->id_patient));
+        $this->assertFalse($ids->contains($otherPatient->id_patient));
+    }
+
+    public function test_doctor_cannot_update_unlinked_patient_record(): void
+    {
+        $owned = $this->creerDossierClinique();
+
+        $otherPatient = Patient::create([
+            'nom' => 'Autre',
+            'prenom' => 'Patient',
+            'date_naissance' => '1992-02-02',
+            'sexe' => 'M',
+            'cin' => 'OTH'.random_int(100000, 999999),
+            'telephone' => '0600000099',
+            'email' => 'other'.random_int(1000, 9999).'@example.com',
+            'groupe_sanguin' => 'A+',
+        ]);
+
+        $doctor = User::factory()->create([
+            'role' => 'medecin',
+            'statut' => 'Actif',
+            'id_medecin' => $owned['idMedecin'],
+        ]);
+
+        $this->actingAs($doctor, 'sanctum')
+            ->putJson('/api/patients/'.$otherPatient->id_patient, [
+                'nom' => 'Tentative',
+                'prenom' => 'Interdite',
+                'date_naissance' => '1992-02-02',
+                'sexe' => 'M',
+                'cin' => $otherPatient->cin,
+                'telephone' => '0600000098',
+                'email' => $otherPatient->email,
+                'groupe_sanguin' => 'A+',
+            ])
+            ->assertStatus(403);
+
+        $this->assertSame('Autre', $otherPatient->fresh()->nom);
     }
 
 }
