@@ -39,8 +39,11 @@ class ResultatController extends Controller
     {
         $resultats = $this->limiterAuPerimetre(Resultat::query(), $request)
             ->with([
-                'demandeExamen.consultation.rendezVous.patient',
-                'demandeExamen.consultation.rendezVous.medecin',
+                'demandeExamen:id_demande_examen,id_consultation',
+                'demandeExamen.consultation:id_consultation,id_rendez_vous',
+                'demandeExamen.consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+                'demandeExamen.consultation.rendezVous.patient:id_patient,nom,prenom',
+                'demandeExamen.consultation.rendezVous.medecin:id_medecin,nom,prenom',
             ])
             ->get();
 
@@ -53,8 +56,11 @@ class ResultatController extends Controller
         Gate::authorize('resultats.read', $resultat);
 
         $resultat->load([
-            'demandeExamen.consultation.rendezVous.patient',
-            'demandeExamen.consultation.rendezVous.medecin',
+            'demandeExamen:id_demande_examen,id_consultation',
+            'demandeExamen.consultation:id_consultation,id_rendez_vous',
+            'demandeExamen.consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
+            'demandeExamen.consultation.rendezVous.patient:id_patient,nom,prenom',
+            'demandeExamen.consultation.rendezVous.medecin:id_medecin,nom,prenom',
         ]);
 
         return response()->json(['resultat' => $resultat], 200);
