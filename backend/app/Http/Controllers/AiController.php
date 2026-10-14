@@ -57,7 +57,7 @@ class AiController extends Controller
                 ], 502);
             }
 
-            $confidence = max(0.0, min(1.0, (float) $confidence));
+            $confidence = max(0.0, min(100.0, (float) $confidence));
             $specialityName = $this->getRecommendedSpeciality($disease);
 
             $speciality = DB::table('specialites')
