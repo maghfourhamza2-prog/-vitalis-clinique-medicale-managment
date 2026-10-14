@@ -7,6 +7,7 @@ use App\Models\Facture;
 use App\Models\Hospitalisation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use App\Enums\StatutFacture;
@@ -112,79 +113,78 @@ class FactureController extends Controller
                 'string',
                 'max:255',
                 Rule::unique('factures', 'numero_facture')
-                    ->ignore($facture->id_facture, 'id_facture')
+                    ->ignore($facture->id_facture, 'id_facture'),
             ],
-
-            'date_facture' => [
-                'sometimes',
-                'required',
-                'date'
-            ],
-
-            'remise' => [
-                'sometimes',
-                'required',
-                'numeric',
-                'min:0'
-            ],
-
-            'observations' => [
-                'sometimes',
-                'nullable',
-                'string'
-            ],
-
+            'date_facture' => ['sometimes', 'required', 'date'],
+            'remise' => ['sometimes', 'required', 'numeric', 'min:0'],
+            'observations' => ['sometimes', 'nullable', 'string'],
             'id_consultation' => [
                 'sometimes',
                 'nullable',
                 'integer',
-                'exists:consultations,id_consultation'
+                'exists:consultations,id_consultation',
             ],
-
             'id_hospitalisation' => [
                 'sometimes',
                 'nullable',
                 'integer',
-                'exists:hospitalisations,id_hospitalisation'
+                'exists:hospitalisations,id_hospitalisation',
             ],
         ]);
 
-        $idConsultation = array_key_exists('id_consultation', $validated)
-            ? $validated['id_consultation']
-            : $facture->id_consultation;
+        $facture = DB::transaction(function () use ($id, $validated) {
+            $facture = Facture::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $idHospitalisation = array_key_exists('id_hospitalisation', $validated)
-            ? $validated['id_hospitalisation']
-            : $facture->id_hospitalisation;
+            $idConsultation = array_key_exists('id_consultation', $validated)
+                ? $validated['id_consultation']
+                : $facture->id_consultation;
 
-        $dateFacture = $validated['date_facture']
-            ?? $facture->date_facture;
+            $idHospitalisation = array_key_exists('id_hospitalisation', $validated)
+                ? $validated['id_hospitalisation']
+                : $facture->id_hospitalisation;
 
-        $remise = array_key_exists('remise', $validated)
-            ? (float) $validated['remise']
-            : (float) $facture->remise;
+            $dateFacture = $validated['date_facture'] ?? $facture->date_facture;
+            $remise = array_key_exists('remise', $validated)
+                ? (float) $validated['remise']
+                : (float) $facture->remise;
 
-        $montantTotal = $this->calculerMontantTotal(
-            $idConsultation,
-            $idHospitalisation,
-            $dateFacture
-        );
+            $montantTotal = $this->calculerMontantTotal(
+                $idConsultation,
+                $idHospitalisation,
+                $dateFacture
+            );
 
-        if ($remise > $montantTotal) {
-            throw ValidationException::withMessages([
-                'remise' => 'La remise ne peut pas dépasser le montant total.'
-            ]);
-        }
+            if ($remise > $montantTotal) {
+                throw ValidationException::withMessages([
+                    'remise' => 'La remise ne peut pas dépasser le montant total.',
+                ]);
+            }
 
-        $validated['montant_total'] = $montantTotal;
-        $validated['montant_net'] = $montantTotal - $remise;
+            $montantNet = $montantTotal - $remise;
+            $totalPaye = (float) $facture->paiements()
+                ->where('statut', 'valide')
+                ->sum('montant_paye');
 
-        $facture->update($validated);
-        $this->synchroniserStatutPaiement($facture);
+            if ($totalPaye > $montantNet) {
+                throw ValidationException::withMessages([
+                    'remise' => 'La modification ferait passer le montant net sous le total déjà payé.',
+                ]);
+            }
+
+            $validated['montant_total'] = $montantTotal;
+            $validated['montant_net'] = $montantNet;
+
+            $facture->update($validated);
+            $this->synchroniserStatutPaiement($facture);
+
+            return $facture->fresh();
+        });
 
         return response()->json([
             'message' => 'Facture modifiée avec succès',
-            'facture' => $facture
+            'facture' => $facture,
         ], 200);
     }
 
