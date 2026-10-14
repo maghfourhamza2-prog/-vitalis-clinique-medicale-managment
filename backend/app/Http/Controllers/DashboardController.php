@@ -75,19 +75,11 @@ class DashboardController extends Controller
             ->whereDate('rendez_vous.date_rendez_vous', $today)
             ->count();
 
-        $chiffreAffaires = DB::table('factures')
-            ->join('consultations', 'factures.id_consultation', '=', 'consultations.id_consultation')
-            ->join('rendez_vous', 'consultations.id_rendez_vous', '=', 'rendez_vous.id_rendez_vous')
-            ->where('rendez_vous.id_medecin', $user->id_medecin)
-            ->whereDate('factures.date_facture', $today)
-            ->sum('factures.montant_net');
-
         return [
             'stats' => [
                 'patients' => $rendezVousAujourdhui->count(),
                 'rendezVous' => $rendezVousAujourdhui->count(),
                 'consultations' => $consultationsAujourdhui,
-                'chiffreAffaires' => number_format($chiffreAffaires, 0, ',', ' ') . ' DH',
             ],
             'rendezVous' => $rendezVousAujourdhui->map(fn ($rdv) => [
                 'heure' => substr($rdv->heure_debut, 0, 5),
