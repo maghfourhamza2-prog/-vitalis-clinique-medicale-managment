@@ -11,6 +11,17 @@ return [
         FILTER_VALIDATE_BOOL
     ),
 
+    // Le seeder principal contient des patients, medecins et comptes de
+    // demonstration. Il est autorise localement, mais jamais en production
+    // sans opt-in explicite.
+    'allow_demo_seeding' => filter_var(
+        env(
+            'ALLOW_DEMO_SEEDING',
+            in_array(env('APP_ENV', 'production'), ['local', 'testing'], true)
+        ),
+        FILTER_VALIDATE_BOOL
+    ),
+
     'audit' => [
         // Prefer a dedicated production key. APP_KEY is a safe fallback for
         // development/testing so audit signatures are never plain hashes.
