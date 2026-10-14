@@ -735,4 +735,17 @@ class SecurityHardeningTest extends TestCase
         );
     }
 
+
+    public function test_public_health_check_hides_internal_service_names(): void
+    {
+        $response = $this->getJson('/api/health');
+
+        $this->assertContains($response->status(), [200, 503]);
+        $response->assertJsonStructure(['status', 'timestamp']);
+        $response->assertJsonMissingPath('services');
+
+        $this->assertStringNotContainsString('database', $response->getContent());
+        $this->assertStringNotContainsString('redis', $response->getContent());
+    }
+
 }
