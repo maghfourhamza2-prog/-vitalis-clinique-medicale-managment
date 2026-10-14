@@ -118,7 +118,9 @@ await verifier('SCRUM-535 URL directe : chaque role n atteint que ce qu il peut'
 await verifier('SCRUM-535 le refus mene au tableau de bord, jamais a une impasse', async () => {
   connecterAvecRole(ROLES.PATIENT)
 
-  for (const chemin of ['/utilisateurs', '/patients', '/consultations', '/ordonnances', '/examens', '/hospitalisations', '/facturation', '/parametres']) {
+  for (const { chemin, permission } of ECRANS) {
+    if (detient(ROLES.PATIENT, permission)) continue
+
     const arrivee = await aller(chemin)
     assert.equal(arrivee.name, 'dashboard', `${chemin} devrait mener au tableau de bord`)
   }
