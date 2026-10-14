@@ -137,6 +137,9 @@ private function regles(bool $creation): array
     string $heureFin,
     ?int $idRendezVous = null
 ): bool {
+    $heureDebut = strlen($heureDebut) === 5 ? $heureDebut.':00' : $heureDebut;
+    $heureFin = strlen($heureFin) === 5 ? $heureFin.':00' : $heureFin;
+
     return RendezVous::query()
         ->where('id_medecin', $idMedecin)
         ->where('date_rendez_vous', $date)

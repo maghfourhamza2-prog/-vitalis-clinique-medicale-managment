@@ -78,6 +78,8 @@ class CouvertureEndpointsSecurisesTest extends TestCase
      */
     private const PERMISSIONS_CLOISONNEES_PAR_PROPRIETAIRE = [
         'rendez-vous.read',
+        'examens.read',
+        'hospitalisations.read',
     ];
 
     private const SANS_PERMISSION_ASSUMEE = [

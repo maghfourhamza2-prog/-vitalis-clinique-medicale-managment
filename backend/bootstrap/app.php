@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -82,6 +83,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json([
                     'message' => 'Non authentifié',
                 ], 401);
+            }
+        });
+
+        $exceptions->render(function (AuthorizationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'Accès interdit',
+                ], 403);
             }
         });
     })->create();

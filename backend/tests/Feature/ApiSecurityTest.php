@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -51,6 +52,28 @@ class ApiSecurityTest extends TestCase
     private function utilisateur(string $role): User
     {
         return User::factory()->create(['role' => $role]);
+    }
+
+    private function creerMedecin(string $nom): int
+    {
+        $idSpecialite = DB::table('specialites')->insertGetId([
+            'nom_specialite' => 'Securite '.uniqid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'id_specialite');
+
+        return DB::table('medecins')->insertGetId([
+            'matricule' => 'MAT'.uniqid(),
+            'nom' => $nom,
+            'prenom' => 'Test',
+            'telephone' => '0600000000',
+            'email' => 'medecin'.uniqid().'@example.com',
+            'date_embauche' => '2020-01-01',
+            'tarif_consultation' => 300,
+            'id_specialite' => $idSpecialite,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'id_medecin');
     }
 
     // ------------------------------------------------ limitation de debit

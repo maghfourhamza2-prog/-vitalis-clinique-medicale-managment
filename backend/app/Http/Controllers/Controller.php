@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Auth\PerimetreDossier;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 
 abstract class Controller
@@ -33,9 +34,10 @@ abstract class Controller
 
         $restreint = PerimetreDossier::perimetreRestreint($request->user());
 
-        abort(
-            $restreint ? 403 : 404,
-            $restreint ? 'Accès interdit' : 'Ressource introuvable'
-        );
+        if ($restreint) {
+            throw new AuthorizationException('Accès interdit');
+        }
+
+        abort(404, 'Ressource introuvable');
     }
 }
