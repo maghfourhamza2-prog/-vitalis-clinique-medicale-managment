@@ -201,10 +201,7 @@
                 Annuler
               </button>
 
-              <button
-                type="submit"
-                class="primary-btn"
-              >
+              <button v-if="peutAction('parametres.modifier')" type="submit" class="primary-btn">
                 <i class="fi fi-rr-disk"></i>
                 Enregistrer les modifications
               </button>
@@ -337,10 +334,7 @@
             </div>
 
             <div class="form-actions">
-              <button
-                type="submit"
-                class="primary-btn"
-              >
+              <button v-if="peutAction('parametres.modifier')" type="submit" class="primary-btn">
                 <i class="fi fi-rr-disk"></i>
                 Enregistrer les modifications
               </button>
@@ -506,10 +500,7 @@
               </div>
 
               <div class="form-actions">
-                <button
-                  type="submit"
-                  class="primary-btn"
-                >
+                <button v-if="peutAction('parametres.modifier')" type="submit" class="primary-btn">
                   <i class="fi fi-rr-lock"></i>
                   Modifier le mot de passe
                 </button>
