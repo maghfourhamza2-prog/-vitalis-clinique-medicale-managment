@@ -36,10 +36,7 @@
     <div class="quick-actions">
 
       <!-- NOUVEAU PATIENT -->
-      <button
-        class="quick-card"
-        @click="openCreateModal"
-      >
+      <button v-if="peutAction('patients.creer')" class="quick-card" @click="openCreateModal">
 
         <div class="quick-icon blue">
           <i class="fi fi-rr-user-add"></i>
@@ -361,10 +358,7 @@
                     aux critères sélectionnés.
                   </p>
 
-                  <button
-                    class="btn-primary"
-                    @click="openCreateModal"
-                  >
+                  <button v-if="peutAction('patients.creer')" class="btn-primary" @click="openCreateModal">
                     <i class="fi fi-rr-plus"></i>
                     Nouveau patient
                   </button>
@@ -839,10 +833,7 @@
           </button>
 
 
-          <button
-            class="btn-delete"
-            @click="deletePatient"
-          >
+          <button v-if="peutAction('patients.supprimer')" class="btn-delete" @click="deletePatient">
             Supprimer
           </button>
 
