@@ -140,6 +140,8 @@ Audit-log reading is restricted to administrators through `audit-logs.read`.
 
 The actor ID is intentionally retained independently of the users-table foreign key, so deleting a user does not rewrite historical evidence. Production should configure a dedicated `AUDIT_HMAC_KEY`.
 
+Retention is explicit and conservative: `AUDIT_RETENTION_DAYS=0` keeps logs indefinitely. Once the clinic approves a retention period, a positive value enables the scheduled `audit:prune` job, which is the only controlled deletion path for expired audit rows.
+
 ## Financial integrity
 
 Invoice and payment routes have explicit permissions.
