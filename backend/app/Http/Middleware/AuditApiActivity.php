@@ -64,7 +64,7 @@ class AuditApiActivity
             // Une panne du journal ne doit jamais masquer la reponse metier
             // ni l'exception originale.
             Log::error('Impossible d\'ecrire le journal d\'audit', [
-                'exception' => $e->getMessage(),
+                'exception_type' => $e::class,
             ]);
         }
     }
