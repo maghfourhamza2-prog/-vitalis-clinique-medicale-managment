@@ -7,6 +7,7 @@ use App\Models\DemandeExamen;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class DemandeExamenController extends Controller
 {
@@ -130,12 +131,12 @@ class DemandeExamenController extends Controller
         return [
             'date_demande' => [$requis, 'date'],
             'type_examen' => [$requis, 'string', 'max:255'],
-            'niveau_urgence' => [$requis, 'string'],
-            'indications_cliniques' => [$requis, 'string'],
-            'statut' => [$requis, 'string'],
+            'niveau_urgence' => [$requis, Rule::in(['normal', 'urgent'])],
+            'indications_cliniques' => [$requis, 'string', 'max:5000'],
+            'statut' => [$requis, Rule::in(['en_attente', 'en_cours', 'realise'])],
             'date_prevue' => [$requis, 'date'],
             'date_realisation' => ['nullable', 'date'],
-            'observation' => ['nullable', 'string'],
+            'observation' => ['nullable', 'string', 'max:5000'],
             'id_consultation' => [$requis, 'integer', 'exists:consultations,id_consultation'],
         ];
     }
