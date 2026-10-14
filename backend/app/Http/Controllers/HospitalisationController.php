@@ -34,7 +34,11 @@ class HospitalisationController extends Controller
     public function index(Request $request)
     {
         $hospitalisations = $this->limiterAuPerimetre(Hospitalisation::query(), $request)
-            ->with(['patient', 'chambre', 'medecin'])
+            ->with([
+                'patient:id_patient,nom,prenom',
+                'chambre:id_chambre,numero_chambre,type_chambre,etage,capacite,statut',
+                'medecin:id_medecin,nom,prenom',
+            ])
             ->get();
 
         $this->masquerDonneesCliniquesPourSecretariat($hospitalisations, $request);
@@ -47,7 +51,11 @@ class HospitalisationController extends Controller
         $hospitalisation = $this->trouverOuRefuser(Hospitalisation::find($id), $request);
         Gate::authorize('hospitalisations.read', $hospitalisation);
 
-        $hospitalisation->load(['patient', 'chambre', 'medecin']);
+        $hospitalisation->load([
+            'patient:id_patient,nom,prenom',
+            'chambre:id_chambre,numero_chambre,type_chambre,etage,capacite,statut',
+            'medecin:id_medecin,nom,prenom',
+        ]);
         $this->masquerDonneesCliniquesPourSecretariat(collect([$hospitalisation]), $request);
 
         return response()->json(['hospitalisation' => $hospitalisation], 200);
