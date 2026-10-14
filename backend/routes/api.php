@@ -386,4 +386,4 @@ Route::get('/health', function () {
         'status' => $healthy ? 'ok' : 'degraded',
         'timestamp' => now()->toIso8601String(),
     ], $healthy ? 200 : 503);
-})->middleware('throttle:auth-public');
+});
