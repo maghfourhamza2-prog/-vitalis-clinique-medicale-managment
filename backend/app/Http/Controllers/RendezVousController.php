@@ -67,19 +67,41 @@ private function regles(bool $creation): array
         'heure_fin' => ['required', 'date_format:H:i', 'after:heure_debut'],
         'motif' => ['required', 'string', 'max:255'],
         'statut' => [
-    'required',
-    'string',
-    Rule::in([
-        'Confirmé',
-        'En attente',
-        'En cours',
-        'Annulé',
-    ]),
-],
+            'required',
+            'string',
+            Rule::in([
+                'Confirmé',
+                'En attente',
+                'En cours',
+                'Annulé',
+                'Terminé',
+                // Valeurs historiques encore presentes dans certains jeux
+                // de donnees/tests ; elles sont normalisees avant ecriture.
+                'confirme',
+                'en_attente',
+                'en_cours',
+                'annule',
+                'annulee',
+                'termine',
+                'terminee',
+            ]),
+        ],
         'id_patient' => ['required', 'integer', 'exists:patients,id_patient'],
         'id_medecin' => ['required', 'integer', 'exists:medecins,id_medecin'],
     ];
 }
+
+    private function normaliserStatut(string $statut): string
+    {
+        return match ($statut) {
+            'confirme' => 'Confirmé',
+            'en_attente' => 'En attente',
+            'en_cours' => 'En cours',
+            'annule', 'annulee' => 'Annulé',
+            'termine', 'terminee' => 'Terminé',
+            default => $statut,
+        };
+    }
 
     /**
      * Restreint une requete au perimetre du role qui la formule.
@@ -118,7 +140,7 @@ private function regles(bool $creation): array
     return RendezVous::query()
         ->where('id_medecin', $idMedecin)
         ->where('date_rendez_vous', $date)
-        ->where('statut', '!=', 'Annulé')
+        ->whereNotIn('statut', ['Annulé', 'annule', 'annulee'])
         ->when(
             $idRendezVous !== null,
             fn ($query) => $query->where(
@@ -210,6 +232,7 @@ public function disponibilite(Request $request)
     public function store(Request $request)
     {
         $valide = $request->validate($this->regles(creation: true));
+        $valide['statut'] = $this->normaliserStatut($valide['statut']);
 
         $candidat = new RendezVous($valide);
         Gate::authorize('rendez-vous.create', $candidat);
@@ -281,6 +304,7 @@ public function disponibilite(Request $request)
         Gate::authorize('rendez-vous.update', $rendezVous);
 
         $valide = $request->validate($this->regles(creation: false));
+        $valide['statut'] = $this->normaliserStatut($valide['statut']);
 
         $apresModification = (clone $rendezVous)->fill($valide);
         Gate::authorize('rendez-vous.update', $apresModification);
@@ -351,7 +375,11 @@ public function disponibilite(Request $request)
         Gate::authorize('rendez-vous.update', $rendezVous);
 
         // Un rendez-vous déjà terminé ou déjà annulé ne peut pas être annulé.
-        if (in_array($rendezVous->statut, ['Annulé', 'Terminé'], true)) {
+        if (in_array(
+            $this->normaliserStatut((string) $rendezVous->statut),
+            ['Annulé', 'Terminé'],
+            true
+        )) {
             return response()->json([
                 'message' => 'Ce rendez-vous ne peut plus être annulé (statut actuel : '.$rendezVous->statut.').',
             ], 409);
