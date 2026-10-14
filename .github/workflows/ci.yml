@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - develop
-      - 'feature/security-*'
 
   pull_request:
     branches:
@@ -14,6 +13,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: vitalis-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
