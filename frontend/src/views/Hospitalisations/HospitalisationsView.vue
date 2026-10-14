@@ -695,10 +695,7 @@
           </button>
 
 
-          <button
-            class="btn-exit"
-            @click="confirmExit"
-          >
+          <button v-if="peutAction('hospitalisations.sortir')" class="btn-exit" @click="confirmExit">
             <i class="fi fi-rr-check"></i>
             Confirmer la sortie
           </button>
@@ -744,10 +741,7 @@
           </button>
 
 
-          <button
-            class="btn-delete"
-            @click="deleteHospitalisation"
-          >
+          <button v-if="peutAction('hospitalisations.supprimer')" class="btn-delete" @click="deleteHospitalisation">
             Supprimer
           </button>
 
