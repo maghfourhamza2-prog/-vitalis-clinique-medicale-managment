@@ -267,7 +267,7 @@ class AuthController extends Controller
 
             Log::error('Echec envoi code MFA', [
                 'user_id' => $user->id,
-                'exception' => $e->getMessage(),
+                'exception_type' => $e::class,
             ]);
 
             return response()->json([
