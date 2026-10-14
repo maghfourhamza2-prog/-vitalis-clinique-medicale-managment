@@ -794,4 +794,60 @@ class RendezVousAccesTest extends TestCase
         ]);
     }
 
+
+    public function test_le_detail_rendez_vous_ne_divulgue_pas_la_consultation_au_secretariat(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('Patient');
+        $rdv = $this->creerRendezVous(
+            $patient->id_patient,
+            $idMedecin,
+            'Motif agenda visible'
+        );
+
+        Consultation::create([
+            'motif' => 'Motif clinique secret',
+            'diagnostic' => 'Diagnostic rendez-vous confidentiel',
+            'observations' => 'Observation clinique confidentielle',
+            'id_rendez_vous' => $rdv->id_rendez_vous,
+        ]);
+
+        Sanctum::actingAs($this->utilisateur('secretaire'));
+
+        $response = $this->getJson("/api/rendez-vous/{$rdv->id_rendez_vous}")
+            ->assertStatus(200);
+
+        $response->assertJsonMissingPath('rendez_vous.consultation');
+
+        $corps = $response->getContent();
+        $this->assertStringNotContainsString('Diagnostic rendez-vous confidentiel', $corps);
+        $this->assertStringNotContainsString('Observation clinique confidentielle', $corps);
+        $this->assertStringNotContainsString('Motif clinique secret', $corps);
+    }
+
+    public function test_le_patient_peut_recevoir_la_consultation_de_son_propre_rendez_vous(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('Patient');
+        $rdv = $this->creerRendezVous($patient->id_patient, $idMedecin);
+
+        Consultation::create([
+            'motif' => 'Consultation autorisée',
+            'diagnostic' => 'Diagnostic du patient',
+            'observations' => 'Observation du patient',
+            'id_rendez_vous' => $rdv->id_rendez_vous,
+        ]);
+
+        Sanctum::actingAs($this->utilisateur('patient', [
+            'id_patient' => $patient->id_patient,
+        ]));
+
+        $this->getJson("/api/rendez-vous/{$rdv->id_rendez_vous}")
+            ->assertStatus(200)
+            ->assertJsonPath(
+                'rendez_vous.consultation.diagnostic',
+                'Diagnostic du patient'
+            );
+    }
+
 }
