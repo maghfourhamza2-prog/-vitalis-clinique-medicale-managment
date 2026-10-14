@@ -342,24 +342,6 @@
               />
             </div>
 
-            <!-- STATUT -->
-            <div class="form-group">
-              <label for="statut_paiement">
-                Statut *
-              </label>
-
-              <select
-                id="statut_paiement"
-                v-model="form.statut_paiement"
-                required
-              >
-                <option value="impayee">Impayée</option>
-                <option value="partielle">Partiellement payée</option>
-                <option value="payee">Payée</option>
-                <option value="annulee">Annulée</option>
-              </select>
-            </div>
-
             <!-- CONSULTATION -->
             <div class="form-group">
               <label for="id_consultation">
@@ -844,7 +826,6 @@ const defaultForm = () => ({
   numero_facture: '',
   date_facture: getToday(),
   remise: 0,
-  statut_paiement: 'impayee',
   observations: '',
   id_consultation: '',
   id_hospitalisation: ''
@@ -1078,8 +1059,6 @@ function openEditModal(facture) {
       raw.date_facture
     ),
     remise: Number(raw.remise || 0),
-    statut_paiement:
-      raw.statut_paiement || facture.statut || 'impayee',
     observations: raw.observations || '',
     id_consultation:
       raw.id_consultation || '',
@@ -1128,8 +1107,6 @@ async function saveFacture() {
       form.value.date_facture,
     remise:
       Number(form.value.remise || 0),
-    statut_paiement:
-      form.value.statut_paiement,
     observations:
       form.value.observations || null,
     id_consultation:
