@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import gsap from 'gsap'
 import api from '../../api.js'
+import { peutAction } from '../../actions.js'
 import '../../styles/ordonnances.css'
 const showCreateModal = ref(false)
 const consultationsDisponibles = ref([])
@@ -357,6 +358,7 @@ onMounted(async () => {
       </div>
 
       <button
+        v-if="peutAction('ordonnances.creer')"
         class="new-ordonnance-btn"
         @click="createOrdonnance"
       >
@@ -649,6 +651,7 @@ onMounted(async () => {
 
 
                   <button
+                    v-if="peutAction('ordonnances.telecharger')"
                     class="action-btn download"
                     title="Télécharger"
                     @click="downloadOrdonnance(item)"
@@ -658,6 +661,7 @@ onMounted(async () => {
 
 
                   <button
+                    v-if="peutAction('ordonnances.modifier')"
                     class="action-btn"
                     title="Modifier"
                     @click="editOrdonnance(item)"
@@ -667,6 +671,7 @@ onMounted(async () => {
 
 
                   <button
+                    v-if="peutAction('ordonnances.supprimer')"
                     class="action-btn delete"
                     title="Supprimer"
                     @click="deleteOrdonnance(item)"
