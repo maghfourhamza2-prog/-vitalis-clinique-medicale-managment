@@ -152,6 +152,8 @@ Invoice/payment destructive operations remain limited to administrators.
 
 Room admission uses a transaction and row-level lock on the room before checking capacity. This prevents simultaneous admissions from both seeing the same free place and overbooking the room.
 
+The legacy generic creation endpoint is routed through the same admission logic. Active room transfers are checked against destination capacity, room status is derived from current occupancy, and room capacity cannot be reduced below active occupancy.
+
 ## Browser and API hardening
 
 API responses include defensive headers such as:
@@ -174,6 +176,8 @@ Known fixed seed passwords were removed. Development seed passwords are supplied
 
 Production secrets must be stored in the deployment platform/secret manager and must never be committed.
 
+Demo seeding is disabled outside local/testing environments by default. Production must keep `ALLOW_DEMO_SEEDING=false` so demonstration patients, doctors and accounts cannot be inserted accidentally.
+
 Sanctum tokens use a recognizable prefix to improve secret-scanning detection.
 
 ## CI / DevSecOps controls
@@ -189,8 +193,10 @@ The VITALIS CI workflow is configured to run:
 7. npm security audit;
 8. Gitleaks secret scanning;
 9. Trivy source-tree vulnerability, secret, and configuration scanning;
-10. production backend/frontend container builds;
-11. Trivy HIGH/CRITICAL scans of both production container images.
+10. Semgrep SAST using a pinned scanner version;
+11. production backend/frontend container builds;
+12. Trivy HIGH/CRITICAL scans of both production container images;
+13. Dependabot monitoring for Composer, npm, GitHub Actions and Docker.
 
 A failing test or configured high/critical security finding blocks the CI job.
 
