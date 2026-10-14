@@ -190,3 +190,5 @@ Do not merge the security branch until all of the following are true:
 - the audit migration and audit signing key are ready;
 - the branch is rechecked against the latest upstream `develop`.
 
+
+Validation trigger: 2026-10-14 — final security pipeline run requested after enabling full GitHub access.
