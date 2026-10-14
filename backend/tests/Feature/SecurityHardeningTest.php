@@ -687,4 +687,52 @@ class SecurityHardeningTest extends TestCase
         );
     }
 
+
+    public function test_legacy_hospitalisation_create_cannot_bypass_room_capacity(): void
+    {
+        $dossier = $this->creerDossierClinique();
+
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/hospitalisations', [
+                'date_entree' => now()->toDateString(),
+                'heure_entree' => '13:00',
+                'motif_hospitalisation' => 'Test capacité',
+                'diagnostic_entree' => 'Test',
+                'observations' => null,
+                'id_patient' => $dossier['patient']->id_patient,
+                'id_chambre' => $dossier['hospitalisation']->id_chambre,
+                'id_medecin' => $dossier['idMedecin'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('id_chambre');
+    }
+
+    public function test_active_hospitalisation_cannot_move_into_full_room(): void
+    {
+        $premier = $this->creerDossierClinique();
+        $second = $this->creerDossierClinique();
+
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/hospitalisations/'.$premier['hospitalisation']->id_hospitalisation, [
+                'id_chambre' => $second['hospitalisation']->id_chambre,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('id_chambre');
+
+        $this->assertSame(
+            $premier['hospitalisation']->id_chambre,
+            $premier['hospitalisation']->fresh()->id_chambre
+        );
+    }
+
 }
