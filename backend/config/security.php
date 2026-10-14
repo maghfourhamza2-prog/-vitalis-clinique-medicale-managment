@@ -32,6 +32,11 @@ return [
         // Prefer a dedicated production key. APP_KEY is a safe fallback for
         // development/testing so audit signatures are never plain hashes.
         'hmac_key' => env('AUDIT_HMAC_KEY') ?: env('APP_KEY'),
+
+        // 0 = conservation indefinie jusqu'a validation de la politique
+        // medico-legale de la clinique. Toute valeur positive active le
+        // nettoyage controle via la commande audit:prune.
+        'retention_days' => max(0, (int) env('AUDIT_RETENTION_DAYS', 0)),
     ],
 
     'mfa' => [
