@@ -9,6 +9,8 @@ use App\Notifications\RendezVousCreeNotification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 /**
  * SCRUM-605 / SCRUM-607 - Rendez-vous.
@@ -116,6 +118,7 @@ private function regles(bool $creation): array
     return RendezVous::query()
         ->where('id_medecin', $idMedecin)
         ->where('date_rendez_vous', $date)
+        ->where('statut', '!=', 'Annulé')
         ->when(
             $idRendezVous !== null,
             fn ($query) => $query->where(
@@ -155,19 +158,28 @@ public function disponibilite(Request $request)
         'id_rendez_vous' => [
             'nullable',
             'integer',
-            'exists:rendez_vous,id_rendez_vous',
         ],
     ]);
 
+    $idRendezVous = null;
+
+    if (isset($valide['id_rendez_vous'])) {
+        $rendezVousExclu = $this->trouverOuRefuser(
+            RendezVous::find($valide['id_rendez_vous']),
+            $request
+        );
+
+        Gate::authorize('rendez-vous.read', $rendezVousExclu);
+        $idRendezVous = (int) $rendezVousExclu->id_rendez_vous;
+    }
+
     $conflit = $this->aUnConflit(
-    (int) $valide['id_medecin'],
-    $valide['date_rendez_vous'],
-    $valide['heure_debut'],
-    $valide['heure_fin'],
-    isset($valide['id_rendez_vous'])
-        ? (int) $valide['id_rendez_vous']
-        : null
-);
+        (int) $valide['id_medecin'],
+        $valide['date_rendez_vous'],
+        $valide['heure_debut'],
+        $valide['heure_fin'],
+        $idRendezVous
+    );
 
     if ($conflit) {
         return response()->json([
@@ -199,45 +211,50 @@ public function disponibilite(Request $request)
     {
         $valide = $request->validate($this->regles(creation: true));
 
-        // Le rendez-vous n'est pas encore enregistre : la Gate lit ses cles
-        // etrangeres pour verifier qu'un patient ne prend rendez-vous que
-        // pour lui-meme, et un medecin que pour son propre agenda.
-      $rendezVous = new RendezVous($valide);
-Gate::authorize('rendez-vous.create', $rendezVous);
+        $candidat = new RendezVous($valide);
+        Gate::authorize('rendez-vous.create', $candidat);
 
-if ($this->aUnConflit(
-    (int) $valide['id_medecin'],
-    $valide['date_rendez_vous'],
-    $valide['heure_debut'],
-    $valide['heure_fin']
-)) {
-    return response()->json([
-        'message' => 'Conflit de rendez-vous : le médecin n’est pas disponible pendant cette période.',
-    ], 409);
-}
+        $rendezVous = DB::transaction(function () use ($valide, $candidat) {
+            // Le verrou sur le medecin serialise les reservations concurrentes
+            // pour un meme agenda : deux requetes simultanees ne peuvent pas
+            // toutes les deux observer le creneau comme libre.
+            DB::table('medecins')
+                ->where('id_medecin', $valide['id_medecin'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-$rendezVous->save();
+            if ($this->aUnConflit(
+                (int) $valide['id_medecin'],
+                $valide['date_rendez_vous'],
+                $valide['heure_debut'],
+                $valide['heure_fin']
+            )) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Conflit de rendez-vous : le médecin n’est pas disponible pendant cette période.',
+                ], 409));
+            }
 
-$patientUser = User::where('id_patient', $rendezVous->id_patient)->first();
-$medecinUser = User::where('id_medecin', $rendezVous->id_medecin)->first();
+            $candidat->save();
 
-if ($patientUser) {
-    $patientUser->notify(
-        new RendezVousCreeNotification($rendezVous)
-    );
-}
+            return $candidat;
+        });
 
-if ($medecinUser && (!$patientUser || $medecinUser->id !== $patientUser->id)) {
-    $medecinUser->notify(
-        new RendezVousCreeNotification($rendezVous)
-    );
-}
+        $patientUser = User::where('id_patient', $rendezVous->id_patient)->first();
+        $medecinUser = User::where('id_medecin', $rendezVous->id_medecin)->first();
 
-return response()->json([
-    'message' => 'Rendez-vous créé avec succès',
-    'rendez_vous' => $rendezVous,
-], 201);
-}
+        if ($patientUser) {
+            $patientUser->notify(new RendezVousCreeNotification($rendezVous));
+        }
+
+        if ($medecinUser && (! $patientUser || $medecinUser->id !== $patientUser->id)) {
+            $medecinUser->notify(new RendezVousCreeNotification($rendezVous));
+        }
+
+        return response()->json([
+            'message' => 'Rendez-vous créé avec succès',
+            'rendez_vous' => $rendezVous,
+        ], 201);
+    }
 
     public function show(Request $request, $id)
     {
@@ -261,33 +278,44 @@ return response()->json([
     public function update(Request $request, $id)
     {
         $rendezVous = $this->trouverOuRefuser(RendezVous::find($id), $request);
-
-        // Avant : a-t-il le droit de toucher a CE rendez-vous ?
         Gate::authorize('rendez-vous.update', $rendezVous);
 
         $valide = $request->validate($this->regles(creation: false));
 
-        // Apres : la modification ne doit pas servir a s'attribuer le
-        // rendez-vous de quelqu'un d'autre, ni a le faire sortir de son
-        // perimetre. On evalue la Gate sur les valeurs demandees avant de
-        // les enregistrer.
-       $apresModification = (clone $rendezVous)->fill($valide);
-Gate::authorize('rendez-vous.update', $apresModification);
+        $apresModification = (clone $rendezVous)->fill($valide);
+        Gate::authorize('rendez-vous.update', $apresModification);
 
-if ($this->aUnConflit(
-    (int) $valide['id_medecin'],
-    $valide['date_rendez_vous'],
-    $valide['heure_debut'],
-    $valide['heure_fin'],
-    (int) $rendezVous->id_rendez_vous
-)) {
-    return response()->json([
-        'message' => 'Conflit de rendez-vous : le médecin n’est pas disponible pendant cette période.',
-    ], 409);
-}
+        $rendezVous = DB::transaction(function () use ($rendezVous, $valide) {
+            DB::table('medecins')
+                ->where('id_medecin', $valide['id_medecin'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-$rendezVous->update($valide);
-    foreach (User::where('id_patient', $rendezVous->id_patient)->orWhere('id_medecin', $rendezVous->id_medecin)->get() as $u) { $u->notify(new \App\Notifications\RendezVousModifieNotification($rendezVous)); }
+            if ($this->aUnConflit(
+                (int) $valide['id_medecin'],
+                $valide['date_rendez_vous'],
+                $valide['heure_debut'],
+                $valide['heure_fin'],
+                (int) $rendezVous->id_rendez_vous
+            )) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Conflit de rendez-vous : le médecin n’est pas disponible pendant cette période.',
+                ], 409));
+            }
+
+            $rendezVous->update($valide);
+
+            return $rendezVous->fresh();
+        });
+
+        foreach (
+            User::where('id_patient', $rendezVous->id_patient)
+                ->orWhere('id_medecin', $rendezVous->id_medecin)
+                ->get() as $u
+        ) {
+            $u->notify(new \App\Notifications\RendezVousModifieNotification($rendezVous));
+        }
+
         return response()->json([
             'message' => 'Rendez-vous modifié avec succès',
             'rendez_vous' => $rendezVous,
