@@ -895,4 +895,71 @@ class SecurityHardeningTest extends TestCase
         }
     }
 
+
+    public function test_administrator_cannot_delete_own_account(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson('/api/users/'.$admin->id)
+            ->assertStatus(403);
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+    }
+
+    public function test_administrator_cannot_remove_own_admin_role(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/users/'.$admin->id.'/role', [
+                'role' => 'patient',
+            ])
+            ->assertStatus(403);
+
+        $this->assertSame('administrateur', $admin->fresh()->role);
+    }
+
+    public function test_invoice_cancellation_with_valid_payment_is_rejected(): void
+    {
+        $dossier = $this->creerDossierClinique();
+
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $invoice = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/factures', [
+                'numero_facture' => 'SEC-'.random_int(100000, 999999),
+                'date_facture' => now()->toDateString(),
+                'remise' => 0,
+                'id_consultation' => $dossier['consultation']->id_consultation,
+                'id_hospitalisation' => null,
+            ])
+            ->assertStatus(201)
+            ->json('facture');
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/paiements', [
+                'date_paiement' => now()->toDateString(),
+                'heure_paiement' => '12:00',
+                'montant_paye' => max(1, (float) $invoice['montant_net'] / 2),
+                'mode_paiement' => 'carte_bancaire',
+                'statut' => 'valide',
+                'id_facture' => $invoice['id_facture'],
+            ])
+            ->assertStatus(201);
+
+        $this->actingAs($admin, 'sanctum')
+            ->patchJson('/api/factures/'.$invoice['id_facture'].'/annuler')
+            ->assertStatus(409);
+    }
+
 }
