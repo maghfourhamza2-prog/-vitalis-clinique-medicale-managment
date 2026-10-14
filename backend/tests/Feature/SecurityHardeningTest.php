@@ -807,4 +807,52 @@ class SecurityHardeningTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['id' => $log->id]);
     }
 
+
+    public function test_invoice_print_view_does_not_leak_clinical_notes_to_secretariat(): void
+    {
+        $dossier = $this->creerDossierClinique();
+
+        $secretary = User::factory()->create([
+            'role' => 'secretaire',
+            'statut' => 'Actif',
+        ]);
+
+        $invoice = $this->actingAs($secretary, 'sanctum')
+            ->postJson('/api/factures', [
+                'numero_facture' => 'SEC-'.random_int(100000, 999999),
+                'date_facture' => now()->toDateString(),
+                'remise' => 0,
+                'id_consultation' => $dossier['consultation']->id_consultation,
+                'id_hospitalisation' => null,
+            ])
+            ->assertStatus(201)
+            ->json('facture');
+
+        $response = $this->actingAs($secretary, 'sanctum')
+            ->getJson('/api/factures/'.$invoice['id_facture'].'/imprimer')
+            ->assertStatus(200);
+
+        // Les informations de facturation necessaires restent presentes.
+        $response->assertJsonPath('patient.nom', 'Patient');
+        $response->assertJsonPath('medecin.nom', 'Medecin');
+
+        // Mais la permission factures.read ne doit jamais servir de tunnel
+        // vers le dossier clinique.
+        $corps = $response->getContent();
+
+        foreach ([
+            'Diagnostic confidentiel',
+            'Motif confidentiel',
+            'Motif hospitalier confidentiel',
+            'Diagnostic hospitalier confidentiel',
+            'Observation hospitaliere confidentielle',
+        ] as $secretClinique) {
+            $this->assertStringNotContainsString($secretClinique, $corps);
+        }
+
+        $response->assertJsonMissingPath('facture.consultation.diagnostic');
+        $response->assertJsonMissingPath('facture.consultation.motif');
+        $response->assertJsonMissingPath('facture.consultation.rendez_vous.motif');
+    }
+
 }
