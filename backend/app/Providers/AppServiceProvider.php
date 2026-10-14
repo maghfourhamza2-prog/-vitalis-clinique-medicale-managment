@@ -73,6 +73,19 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        RateLimiter::for('password-reset-request', function (Request $request) {
+            $email = Str::lower((string) $request->input('email'));
+
+            return [
+                // Evite le spam de liens de reinitialisation vers une meme
+                // boite, meme si l'attaquant change d'adresse IP.
+                Limit::perMinute(5)->by(
+                    'reset-email:'.hash('sha256', $email)
+                ),
+                Limit::perMinute(10)->by('reset-ip:'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('auth-public', function (Request $request) {
             // Inscription, demande et confirmation de reinitialisation : limite
             // la creation de comptes en masse, l'envoi massif d'emails et les
