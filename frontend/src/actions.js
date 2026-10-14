@@ -47,12 +47,26 @@ export const PERMISSION_PAR_ACTION = {
   'consultations.modifier': 'consultations.update',
   'consultations.supprimer': 'consultations.delete',
 
+  // Examens
+  'examens.creer': 'examens.create',
+  'examens.modifier': 'examens.update',
+  'examens.supprimer': 'examens.delete',
+
+  // Hospitalisations
+  'hospitalisations.creer': 'hospitalisations.create',
+  'hospitalisations.modifier': 'hospitalisations.update',
+  'hospitalisations.sortir': 'hospitalisations.update',
+  'hospitalisations.supprimer': 'hospitalisations.delete',
+
   // Facturation et paiements
   'factures.creer': 'factures.create',
   'factures.modifier': 'factures.update',
   'factures.annuler': 'factures.update',
   'factures.supprimer': 'factures.delete',
   'paiements.creer': 'paiements.create',
+
+  // Parametres administratifs
+  'parametres.modifier': 'roles.manage',
 
   // Comptes utilisateurs : le backend ne connait qu'une permission pour tout
   // ce module, 'roles.manage', accordee au seul administrateur.
