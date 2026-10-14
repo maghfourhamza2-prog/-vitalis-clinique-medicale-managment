@@ -56,11 +56,6 @@ class FactureController extends Controller
                 'min:0'
             ],
 
-            'statut_paiement' => [
-                'required',
-                Rule::enum(StatutFacture::class)
-            ],
-
             'observations' => [
                 'nullable',
                 'string'
@@ -95,6 +90,7 @@ class FactureController extends Controller
 
         $validated['montant_total'] = $montantTotal;
         $validated['montant_net'] = $montantTotal - $remise;
+        $validated['statut_paiement'] = StatutFacture::IMPAYEE->value;
 
         $facture = Facture::create($validated);
 
@@ -132,12 +128,6 @@ class FactureController extends Controller
                 'min:0'
             ],
 
-            'statut_paiement' => [
-            'sometimes',
-            'required',
-             Rule::enum(StatutFacture::class)
-            ],
-            
             'observations' => [
                 'sometimes',
                 'nullable',
@@ -190,6 +180,7 @@ class FactureController extends Controller
         $validated['montant_net'] = $montantTotal - $remise;
 
         $facture->update($validated);
+        $this->synchroniserStatutPaiement($facture);
 
         return response()->json([
             'message' => 'Facture modifiée avec succès',
@@ -271,6 +262,12 @@ class FactureController extends Controller
     if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
         return response()->json([
             'message' => 'Cette facture est déjà annulée.'
+        ], 409);
+    }
+
+    if ($facture->paiements()->where('statut', 'valide')->exists()) {
+        return response()->json([
+            'message' => 'Impossible d\'annuler une facture avec des paiements validés. Annulez ou remboursez d\'abord les paiements.',
         ], 409);
     }
 
@@ -365,10 +362,37 @@ class FactureController extends Controller
     );
     }
 
+    private function synchroniserStatutPaiement(Facture $facture): void
+    {
+        if ($facture->statut_paiement === StatutFacture::ANNULEE->value) {
+            return;
+        }
+
+        $totalPaye = (float) $facture->paiements()
+            ->where('statut', 'valide')
+            ->sum('montant_paye');
+
+        $montantNet = (float) $facture->montant_net;
+
+        $statut = match (true) {
+            $totalPaye <= 0 => StatutFacture::IMPAYEE->value,
+            $totalPaye < $montantNet => StatutFacture::PARTIELLE->value,
+            default => StatutFacture::PAYEE->value,
+        };
+
+        $facture->update(['statut_paiement' => $statut]);
+    }
+
     // Supprimer une facture
     public function destroy($id)
     {
         $facture = Facture::findOrFail($id);
+
+        if ($facture->paiements()->exists()) {
+            return response()->json([
+                'message' => 'Impossible de supprimer une facture qui contient des paiements.',
+            ], 409);
+        }
 
         $facture->delete();
 
