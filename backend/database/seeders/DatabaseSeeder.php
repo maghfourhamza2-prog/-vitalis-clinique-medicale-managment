@@ -11,6 +11,14 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! (bool) config('security.allow_demo_seeding', false)) {
+            if ($this->command) {
+                $this->command->warn('Demo seeding is disabled for this environment.');
+            }
+
+            return;
+        }
+
         $now = now();
 
         // Ne jamais versionner de mot de passe de demonstration connu.
