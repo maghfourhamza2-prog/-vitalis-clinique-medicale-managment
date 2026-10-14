@@ -655,4 +655,36 @@ class SecurityHardeningTest extends TestCase
             ->assertJsonValidationErrors('remise');
     }
 
+
+    public function test_deleted_user_has_no_remaining_sessions(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $target = User::factory()->create([
+            'role' => 'patient',
+            'statut' => 'Actif',
+        ]);
+
+        $target->createToken('mobile');
+        $target->createToken('tablet');
+
+        $this->assertSame(2, $target->tokens()->count());
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson('/api/users/'.$target->id)
+            ->assertStatus(200);
+
+        $this->assertDatabaseMissing('users', ['id' => $target->id]);
+        $this->assertSame(
+            0,
+            \Laravel\Sanctum\PersonalAccessToken::query()
+                ->where('tokenable_type', User::class)
+                ->where('tokenable_id', $target->id)
+                ->count()
+        );
+    }
+
 }
