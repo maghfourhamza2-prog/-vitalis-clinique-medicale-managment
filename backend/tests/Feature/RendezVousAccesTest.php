@@ -715,4 +715,83 @@ class RendezVousAccesTest extends TestCase
 
         $this->assertDatabaseCount('rendez_vous', 2);
     }
+
+    public function test_disponibilite_ne_permet_pas_denumerer_un_rendez_vous_dautrui(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $sien = $this->creerPatient('Sien');
+        $autre = $this->creerPatient('Autre');
+        $rdvAutre = $this->creerRendezVous($autre->id_patient, $idMedecin);
+
+        Sanctum::actingAs($this->utilisateur('patient', [
+            'id_patient' => $sien->id_patient,
+        ]));
+
+        $query = http_build_query([
+            'id_medecin' => $idMedecin,
+            'date_rendez_vous' => now()->addDay()->toDateString(),
+            'heure_debut' => '09:00',
+            'heure_fin' => '09:30',
+        ]);
+
+        $existantInterdit = $this->getJson(
+            '/api/rendez-vous/disponibilite?'.$query.'&id_rendez_vous='.$rdvAutre->id_rendez_vous
+        );
+
+        $inexistant = $this->getJson(
+            '/api/rendez-vous/disponibilite?'.$query.'&id_rendez_vous=999999999'
+        );
+
+        $existantInterdit->assertStatus(403);
+        $inexistant->assertStatus(403);
+        $this->assertSame($inexistant->json(), $existantInterdit->json());
+    }
+
+    public function test_un_rendez_vous_annule_ne_bloque_pas_le_creneau(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('Patient');
+        $rdv = $this->creerRendezVous($patient->id_patient, $idMedecin);
+        $rdv->update(['statut' => 'annulee']);
+
+        Sanctum::actingAs($this->utilisateur('secretaire'));
+
+        $response = $this->getJson('/api/rendez-vous/disponibilite?'.http_build_query([
+            'id_medecin' => $idMedecin,
+            'date_rendez_vous' => now()->addDay()->toDateString(),
+            'heure_debut' => '09:00',
+            'heure_fin' => '09:30',
+        ]));
+
+        $response->assertStatus(200)
+            ->assertJsonPath('disponible', true);
+    }
+
+    public function test_les_anciens_statuts_sont_normalises_lors_dune_ecriture_api(): void
+    {
+        $idMedecin = $this->creerMedecin('Alami');
+        $patient = $this->creerPatient('Patient');
+
+        Sanctum::actingAs($this->utilisateur('patient', [
+            'id_patient' => $patient->id_patient,
+        ]));
+
+        $response = $this->postJson('/api/rendez-vous', [
+            'date_rendez_vous' => now()->addDays(2)->toDateString(),
+            'heure_debut' => '16:00',
+            'heure_fin' => '16:30',
+            'motif' => 'Normalisation',
+            'statut' => 'en_attente',
+            'id_patient' => $patient->id_patient,
+            'id_medecin' => $idMedecin,
+        ])->assertStatus(201);
+
+        $id = $response->json('rendez_vous.id_rendez_vous');
+
+        $this->assertDatabaseHas('rendez_vous', [
+            'id_rendez_vous' => $id,
+            'statut' => 'En attente',
+        ]);
+    }
+
 }
