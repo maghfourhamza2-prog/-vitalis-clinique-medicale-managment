@@ -68,12 +68,11 @@ export const PERMISSION_PAR_ACTION = {
   // Parametres administratifs
   'parametres.modifier': 'roles.manage',
 
-  // Comptes utilisateurs : le backend ne connait qu'une permission pour tout
-  // ce module, 'roles.manage', accordee au seul administrateur.
-  'utilisateurs.ajouter': 'roles.manage',
-  'utilisateurs.consulter': 'roles.manage',
-  'utilisateurs.modifier': 'roles.manage',
-  'utilisateurs.supprimer': 'roles.manage'
+  // Comptes utilisateurs : chaque action suit la permission exacte du backend.
+  'utilisateurs.ajouter': 'users.create',
+  'utilisateurs.consulter': 'users.read',
+  'utilisateurs.modifier': 'users.update',
+  'utilisateurs.supprimer': 'users.delete'
   
 }
 
