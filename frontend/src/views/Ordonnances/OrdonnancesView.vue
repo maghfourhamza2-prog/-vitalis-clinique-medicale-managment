@@ -814,6 +814,7 @@ onMounted(async () => {
           </button>
 
           <button
+            v-if="peutAction(editingId ? 'ordonnances.modifier' : 'ordonnances.creer')"
             type="button"
             class="new-ordonnance-btn"
             @click="saveOrdonnance"
