@@ -59,7 +59,8 @@ class FactureController extends Controller
 
             'observations' => [
                 'nullable',
-                'string'
+                'string',
+                'max:5000'
             ],
 
             'id_consultation' => [
