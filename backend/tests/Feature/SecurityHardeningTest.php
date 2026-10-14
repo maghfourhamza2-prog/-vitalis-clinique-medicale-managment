@@ -613,4 +613,46 @@ class SecurityHardeningTest extends TestCase
             ->assertStatus(409);
     }
 
+
+    public function test_invoice_cannot_be_reduced_below_already_paid_amount(): void
+    {
+        $dossier = $this->creerDossierClinique();
+
+        $admin = User::factory()->create([
+            'role' => 'administrateur',
+            'statut' => 'Actif',
+        ]);
+
+        $invoice = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/factures', [
+                'numero_facture' => 'SEC-'.random_int(100000, 999999),
+                'date_facture' => now()->toDateString(),
+                'remise' => 0,
+                'id_consultation' => $dossier['consultation']->id_consultation,
+                'id_hospitalisation' => null,
+            ])
+            ->assertStatus(201)
+            ->json('facture');
+
+        $paid = max(1, (float) $invoice['montant_net'] / 2);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/paiements', [
+                'date_paiement' => now()->toDateString(),
+                'heure_paiement' => '12:00',
+                'montant_paye' => $paid,
+                'mode_paiement' => 'carte_bancaire',
+                'statut' => 'valide',
+                'id_facture' => $invoice['id_facture'],
+            ])
+            ->assertStatus(201);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/factures/'.$invoice['id_facture'], [
+                'remise' => (float) $invoice['montant_total'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('remise');
+    }
+
 }
