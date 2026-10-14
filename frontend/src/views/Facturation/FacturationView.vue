@@ -10,6 +10,7 @@
       </div>
 
       <button
+        v-if="peutAction('factures.creer')"
         class="primary-btn header-create-btn"
         type="button"
         @click="openCreateModal"
