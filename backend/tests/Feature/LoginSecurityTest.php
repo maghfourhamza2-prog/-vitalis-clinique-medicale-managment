@@ -180,4 +180,24 @@ class LoginSecurityTest extends TestCase
         ])->assertStatus(429);
     }
 
+
+    public function test_password_reset_email_is_rate_limited_across_multiple_ips(): void
+    {
+        User::factory()->create(['email' => 'reset-distribue@example.com']);
+
+        for ($i = 1; $i <= 5; $i++) {
+            $this->withServerVariables([
+                'REMOTE_ADDR' => "10.40.50.{$i}",
+            ])->postJson('/api/forgot-password', [
+                'email' => 'reset-distribue@example.com',
+            ])->assertStatus(200);
+        }
+
+        $this->withServerVariables([
+            'REMOTE_ADDR' => '10.40.50.99',
+        ])->postJson('/api/forgot-password', [
+            'email' => 'reset-distribue@example.com',
+        ])->assertStatus(429);
+    }
+
 }
