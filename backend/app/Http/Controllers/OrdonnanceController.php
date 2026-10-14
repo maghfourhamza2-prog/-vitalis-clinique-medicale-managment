@@ -130,7 +130,7 @@ class OrdonnanceController extends Controller
     public function index(Request $request)
 {
     $requete = Ordonnance::with([
-        'consultation:id_consultation,id_rendez_vous',
+        'consultation:id_consultation,id_rendez_vous,diagnostic',
         'consultation.rendezVous:id_rendez_vous,id_patient,id_medecin',
         'consultation.rendezVous.patient:id_patient,nom,prenom,cin',
         'consultation.rendezVous.medecin:id_medecin,nom,prenom,id_specialite',
