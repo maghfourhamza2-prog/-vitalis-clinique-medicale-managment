@@ -47,6 +47,12 @@ export const PERMISSION_PAR_ACTION = {
   'consultations.modifier': 'consultations.update',
   'consultations.supprimer': 'consultations.delete',
 
+  // Ordonnances
+  'ordonnances.creer': 'ordonnances.create',
+  'ordonnances.modifier': 'ordonnances.update',
+  'ordonnances.supprimer': 'ordonnances.delete',
+  'ordonnances.telecharger': 'ordonnances.read',
+
   // Examens
   'examens.creer': 'examens.create',
   'examens.modifier': 'examens.update',
