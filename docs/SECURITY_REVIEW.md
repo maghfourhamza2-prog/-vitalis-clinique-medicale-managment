@@ -1,14 +1,16 @@
 # VITALIS — Security Review
 
 Review date: 2026-10-14  
-Security branch: `feature/security-hardening`  
+Security branch: `feature/security-hardening-final`  
 Target branch: `develop`
 
 ## Executive status
 
-The security hardening implementation is complete on the dedicated security branch. It has not been merged into `develop`.
+The security hardening implementation is complete on the dedicated final security branch. It has not been merged into `develop`.
 
-The remaining gate before merge is execution of the automated validation pipeline. GitHub Actions is currently not producing workflow runs on the fork, so the branch must remain unmerged until Actions is enabled and the full CI pipeline passes.
+GitHub Actions is enabled and the complete VITALIS CI pipeline has passed on the hardened code: backend tests and Composer audit, frontend tests/build and npm audit, Gitleaks, Semgrep SAST, Trivy filesystem scanning, and production-container scanning all completed successfully.
+
+The branch remains unmerged intentionally. Merge/deployment still requires project-owner approval and the production-only configuration listed below.
 
 ## High-risk findings addressed
 
@@ -161,8 +163,8 @@ Before deploying this branch:
 
 These controls are repository settings rather than application code and must be configured by a repository administrator:
 
-- enable GitHub Actions;
-- protect `develop`;
+- GitHub Actions is enabled on the fork and validation is passing;
+- protect `develop` on the upstream repository;
 - require the CI checks before merge;
 - require pull-request review;
 - block direct pushes to `develop` where the team workflow permits.
@@ -177,21 +179,20 @@ The AI/ML functionality is an assistance feature and is not treated as a clinica
 
 ## Merge gate
 
-Do not merge the security branch until all of the following are true:
+Automated code/security validation is satisfied:
 
 - backend tests pass;
 - frontend tests pass;
 - frontend build passes;
-- dependency audits pass;
-- Semgrep passes or findings are reviewed;
-- Gitleaks passes or historical findings are reviewed;
-- Trivy filesystem and container scans pass or findings are reviewed;
-- production MFA configuration is confirmed;
-- the audit migration and audit signing key are ready;
-- the branch is rechecked against the latest upstream `develop`.
+- Composer and npm dependency audits pass;
+- Semgrep passes;
+- Gitleaks passes;
+- Trivy filesystem and production-container scans pass;
+- the final branch is synchronized with the latest upstream `develop`.
 
+Before production deployment, the project owner must still provide the environment-specific MFA mail configuration and a protected `AUDIT_HMAC_KEY`, then apply the audit migration.
 
-Validation trigger: 2026-10-14 — final security pipeline run requested after enabling full GitHub access.
+No merge into `develop` should occur without explicit project approval.
 
 ## Dependency remediation
 
