@@ -33,10 +33,11 @@ class AiController extends Controller
                 ]);
 
             if ($response->status() === 400) {
-                return response()->json(
-                    $response->json(),
-                    400
-                );
+                // Ne pas transformer Laravel en proxy d'erreurs internes du
+                // service ML : le client recoit un message stable et borne.
+                return response()->json([
+                    'message' => 'Les symptômes fournis ne peuvent pas être analysés.',
+                ], 422);
             }
 
             if (!$response->successful()) {
@@ -49,7 +50,14 @@ class AiController extends Controller
 
             $disease = $prediction['disease'] ?? null;
             $confidence = $prediction['confidence'] ?? null;
-            
+
+            if (! is_string($disease) || ! is_numeric($confidence)) {
+                return response()->json([
+                    'message' => 'AI service returned an invalid response.',
+                ], 502);
+            }
+
+            $confidence = max(0.0, min(1.0, (float) $confidence));
             $specialityName = $this->getRecommendedSpeciality($disease);
 
             $speciality = DB::table('specialites')
