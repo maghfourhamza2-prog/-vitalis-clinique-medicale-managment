@@ -34,7 +34,16 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: develop
+
+      - name: Verify checked-out commit passed CI
+        run: |
+          TESTED_SHA="${{ github.event.workflow_run.head_sha }}"
+          CURRENT_SHA="$(git rev-parse HEAD)"
+          if [ "$CURRENT_SHA" != "$TESTED_SHA" ]; then
+            echo "develop moved after this CI run; refusing stale deployment."
+            exit 1
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2

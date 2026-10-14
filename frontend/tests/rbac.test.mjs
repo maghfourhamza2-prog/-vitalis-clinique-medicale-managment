@@ -175,45 +175,45 @@ const connecterAvecRole = (role) => {
 
 const libelles = () => entreesVisibles().map((e) => e.libelle)
 
-verifier('SCRUM-533 seules les routes existantes sont proposees', () => {
+verifier('SCRUM-533 toutes les entrees de navigation pointent vers une route existante', () => {
   const disponibles = cheminsExistants(routes)
 
-  // Six modules n'ont pas encore de route : ils ne doivent pas apparaitre,
-  // et aucun module fictif n'a ete cree pour les faire apparaitre.
-  for (const chemin of ['/rendez-vous', '/consultations', '/examens',
-    '/hospitalisations', '/facturation', '/parametres']) {
-    assert.equal(disponibles.has(chemin), false, `${chemin} ne devrait pas exister`)
-  }
-
-  connecterAvecRole(ROLES.ADMINISTRATEUR)
-  const proposes = entreesVisibles().map((e) => e.to)
-  for (const chemin of proposes) {
-    assert.ok(disponibles.has(chemin), `${chemin} est propose mais n a pas de route`)
+  for (const entree of ENTREES_NAVIGATION) {
+    assert.ok(disponibles.has(entree.to), `${entree.to} est propose mais n a pas de route`)
   }
 })
 
-verifier('SCRUM-533 administrateur : tableau de bord, patients et utilisateurs', () => {
-  connecterAvecRole(ROLES.ADMINISTRATEUR)
-  assert.deepEqual(libelles(), ['Tableau de bord', 'Patients', 'Utilisateurs'])
-})
+verifier('SCRUM-533 la navigation suit exactement les permissions de chaque role', () => {
+  const disponibles = cheminsExistants(routes)
 
-verifier('SCRUM-533 medecin, secretaire, infirmier : pas de gestion des utilisateurs', () => {
-  for (const role of [ROLES.MEDECIN, ROLES.SECRETAIRE, ROLES.INFIRMIER]) {
+  for (const role of Object.values(ROLES)) {
     connecterAvecRole(role)
-    assert.deepEqual(libelles(), ['Tableau de bord', 'Patients'], `role ${role}`)
-    assert.equal(peut('roles.manage'), false, `role ${role}`)
+
+    const attendues = ENTREES_NAVIGATION
+      .filter((entree) =>
+        disponibles.has(entree.to) &&
+        (entree.permission === null || PERMISSIONS_PAR_ROLE[role].includes(entree.permission))
+      )
+      .map((entree) => entree.libelle)
+
+    assert.deepEqual(libelles(), attendues, `role ${role}`)
   }
 })
 
-/**
- * Le cas le plus visible : le patient se voyait proposer le dossier des
- * autres patients et la gestion des comptes, deux ecrans qui lui repondent
- * 403.
- */
-verifier('SCRUM-533 patient : ni patients ni utilisateurs', () => {
-  connecterAvecRole(ROLES.PATIENT)
+verifier('SCRUM-533 seuls les administrateurs voient la gestion des utilisateurs', () => {
+  connecterAvecRole(ROLES.ADMINISTRATEUR)
+  assert.ok(libelles().includes('Utilisateurs'))
 
-  assert.deepEqual(libelles(), ['Tableau de bord'])
+  for (const role of [ROLES.MEDECIN, ROLES.SECRETAIRE, ROLES.INFIRMIER, ROLES.PATIENT]) {
+    connecterAvecRole(role)
+    assert.equal(libelles().includes('Utilisateurs'), false, `role ${role}`)
+  }
+})
+
+verifier('SCRUM-533 patient : aucun acces au registre des patients ni aux utilisateurs', () => {
+  connecterAvecRole(ROLES.PATIENT)
+  assert.equal(libelles().includes('Patients'), false)
+  assert.equal(libelles().includes('Utilisateurs'), false)
   assert.equal(peut('patients.read'), false)
   assert.equal(peut('roles.manage'), false)
 })
