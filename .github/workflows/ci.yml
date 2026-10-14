@@ -141,3 +141,17 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+
+
+  sast:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Installer Semgrep
+        run: python3 -m pip install --disable-pip-version-check semgrep==1.180.0
+
+      - name: Analyse statique de securite
+        run: semgrep scan --config p/default --error --metrics=off .
