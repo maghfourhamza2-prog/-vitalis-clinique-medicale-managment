@@ -22,6 +22,12 @@ return [
         FILTER_VALIDATE_BOOL
     ),
 
+    'seed_passwords' => [
+        'admin' => env('VITALIS_SEED_ADMIN_PASSWORD'),
+        'medecin' => env('VITALIS_SEED_MEDECIN_PASSWORD'),
+        'patient' => env('VITALIS_SEED_PATIENT_PASSWORD'),
+    ],
+
     'audit' => [
         // Prefer a dedicated production key. APP_KEY is a safe fallback for
         // development/testing so audit signatures are never plain hashes.
